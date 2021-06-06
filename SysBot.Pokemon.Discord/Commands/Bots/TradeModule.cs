@@ -2,6 +2,7 @@
 using Discord.Commands;
 using Discord.WebSocket;
 using PKHeX.Core;
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -58,12 +59,9 @@ namespace SysBot.Pokemon.Discord
 
             try
             {
-                var sav = AutoLegalityWrapper.GetTrainerInfo(gen);
-                var pkm = sav.GetLegal(template, out var result);
-            	if (Info.Hub.Config.Trade.DittoTrade && pkm.Species == 132)
-					TradeExtensions.DittoTrade(pkm);
-
-				if (Info.Hub.Config.Trade.EggTrade && pkm.Nickname == "Egg")
+				var sav = AutoLegalityWrapper.GetTrainerInfo(gen);
+				var pkm = sav.GetLegal(template, out var result);
+				if (pkm.Nickname.ToLower() == "egg" && Enum.IsDefined(typeof(ValidEgg), pkm.Species))
 					TradeExtensions.EggTrade((PK8)pkm);
 
                 var la = new LegalityAnalysis(pkm);
@@ -177,10 +175,9 @@ namespace SysBot.Pokemon.Discord
 
         private async Task AddTradeToQueueAsync(int code, string trainerName, PK8 pk8, RequestSignificance sig, SocketUser usr)
         {
-            if (!pk8.CanBeTraded() || !new TradeExtensions(Info.Hub).IsItemMule(pk8))
+            if (!pk8.CanBeTraded())
             {
-                var msg = "Provided Pokémon content is blocked from trading!";
-                await ReplyAsync($"{(!Info.Hub.Config.Trade.ItemMuleCustomMessage.Equals(string.Empty) && !Info.Hub.Config.Trade.ItemMuleSpecies.Equals(Species.None) ? Info.Hub.Config.Trade.ItemMuleCustomMessage : msg)}").ConfigureAwait(false);
+                await ReplyAsync("Provided Pokémon content is blocked from trading!").ConfigureAwait(false);
                 return;
             }
 

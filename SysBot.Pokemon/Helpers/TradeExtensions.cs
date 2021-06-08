@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using PKHeX.Core;
 using PKHeX.Core.AutoMod;
 using Newtonsoft.Json;
@@ -16,12 +17,14 @@ namespace SysBot.Pokemon
         public static Random Random = new();
         public static bool TCInitialized;
         private static bool TCRWLockEnable;
+        private static readonly object _sync = new();
         public static Dictionary<ulong, List<DateTime>> UserCommandTimestamps = new();
-        public static readonly List<ulong> CommandInProgress = new();
-        private static readonly List<ulong> GiftInProgress = new();
-        public static readonly List<ulong> IgnoreList = new();
+        public static BlockingCollection<ulong> CommandInProgress = new(1);
+        public static BlockingCollection<ulong> GiftInProgress = new(1);
+        public static readonly HashSet<ulong> MuteList = new();
         public static List<string> TradeCordPath = new();
         public static HashSet<string> TradeCordCooldown = new();
+        public static DateTime EventVoteTimer = new();
         private static readonly string InfoPath = "TradeCord\\UserInfo.json";
         private static readonly string InfoBackupPath = "TradeCord\\UserInfo_backup.json";
         public static TCUserInfoRoot UserInfo = new();
@@ -134,7 +137,7 @@ namespace SysBot.Pokemon
                     if (File.Exists(InfoPath) && fileSize > 2)
                         File.Copy(InfoPath, InfoBackupPath, true);
 
-                    SerializeInfo(UserInfo, InfoPath, true);
+                    SerializeInfo(UserInfo, InfoPath);
                     sw.Restart();
                 }
                 else await Task.Delay(10_000).ConfigureAwait(false);
@@ -581,8 +584,13 @@ namespace SysBot.Pokemon
                 {
                     try
                     {
-                        if (!File.Exists(tmp))
-                            File.Copy(file, tmp);
+                        if (File.Exists(tmp))
+                        {
+                            var size = new FileInfo(tmp).Length;
+                            if (size < 1)
+                                File.Copy(file, tmp, true);
+                        }
+                        else File.Copy(file, tmp);
 
                         using StreamReader sr = File.OpenText(file);
                         using JsonReader reader = new JsonTextReader(sr);
@@ -616,22 +624,19 @@ namespace SysBot.Pokemon
                 _ = Task.Run(() => SerializationMonitor(interval));
             }
 
-            int timer = (int)(Random.NextDouble() * 2000);
             if (!gift)
-                CommandInProgress.Add(id);
-            else if (gift)
-                GiftInProgress.Add(id);
-
-            while (TCRWLockEnable || GiftInProgress.Contains(id) && !gift || CommandInProgress.FindAll(x => x == id).Count > 1 && !gift)
             {
-                await Task.Delay(0_100).ConfigureAwait(false);
-                if (!GiftInProgress.Contains(id) && CommandInProgress.FindAll(x => x == id).Count > 1)
-                {
-                    timer -= 0_100;
-                    if (timer <= 0)
-                        CommandInProgress.Remove(id);
-                }
+                while (TCRWLockEnable || !CommandInProgress.TryAdd(id))
+                    await Task.Delay(0_100).ConfigureAwait(false);
             }
+            else
+            {
+                while (TCRWLockEnable || !GiftInProgress.TryAdd(id))
+                    await Task.Delay(0_100).ConfigureAwait(false);
+            }
+
+            while (TCRWLockEnable || (!gift && GiftInProgress.Contains(id)))
+                await Task.Delay(0_100).ConfigureAwait(false);
 
             var user = UserInfo.Users.FirstOrDefault(x => x.UserID == id);
             if (user == null)
@@ -641,19 +646,23 @@ namespace SysBot.Pokemon
 
         public static void UpdateUserInfo(TCUserInfoRoot.TCUserInfo info, bool remove = true, bool gift = false)
         {
-            UserInfo.Users.RemoveWhere(x => x.UserID == info.UserID);
-            UserInfo.Users.Add(info);
+            lock (_sync)
+            {
+                TCRWLockEnable = true;
+                UserInfo.Users.RemoveWhere(x => x.UserID == info.UserID);
+                UserInfo.Users.Add(info);
+                TCRWLockEnable = false;
+            }
+
             if (remove)
-                CommandInProgress.Remove(info.UserID);
+                CommandInProgress.TryTake(out _);
             if (gift)
-                GiftInProgress.Remove(info.UserID);
+                GiftInProgress.TryTake(out _);
         }
 
-        public static void SerializeInfo(object root, string filePath, bool tc = false)
+        public static void SerializeInfo(object root, string filePath)
         {
-            if (tc)
-                TCRWLockEnable = true;
-
+            TCRWLockEnable = true;
             while (true)
             {
                 try
@@ -666,7 +675,7 @@ namespace SysBot.Pokemon
                     });
 
                     File.WriteAllText(filePath, json);
-                    if (TestJsonIntegrity(tc))
+                    if (TestJsonIntegrity())
                         break;
                 }
                 catch
@@ -674,12 +683,10 @@ namespace SysBot.Pokemon
                     Thread.Sleep(0_100);
                 }
             }
-
-            if (tc)
-                TCRWLockEnable = false;
+            TCRWLockEnable = false;
         }
 
-        private static bool TestJsonIntegrity(bool tc)
+        private static bool TestJsonIntegrity()
         {
             try
             {
@@ -690,7 +697,7 @@ namespace SysBot.Pokemon
                     TCUserInfoRoot? root = (TCUserInfoRoot?)serializer.Deserialize(reader, typeof(TCUserInfoRoot));
                     if (root == null)
                         return false;
-                    else if (tc && UserInfo.Users.Count > 0 && root.Users.Count == 0)
+                    else if (UserInfo.Users.Count > 0 && root.Users.Count == 0)
                         return false;
                 }
                 return true;
@@ -765,6 +772,37 @@ namespace SysBot.Pokemon
                 SpeciesRNG = enumVals[Random.Next(enumVals.Length)],
                 SpeciesBoostRNG = Random.Next(101),
             };
+        }
+
+        public static void DeleteUserData(ulong id)
+        {
+            while (true)
+            {
+                bool command = CommandInProgress.Count > 0;
+                bool gift = GiftInProgress.Count > 0;
+                if (command || gift || TCRWLockEnable)
+                    Task.Delay(0_100);
+                else break;
+            }
+
+            TCRWLockEnable = true;
+            while (true)
+            {
+                var user = UserInfo.Users.FirstOrDefault(x => x.UserID == id);
+                if (user == default)
+                    break;
+                else UserInfo.Users.Remove(user);
+            }
+
+            var path = $"TradeCord\\{id}";
+            var pathBackup = $"TradeCord\\Backup\\{id}";
+            if (Directory.Exists(path))
+                Directory.Delete(path, true);
+
+            if (Directory.Exists(pathBackup))
+                Directory.Delete(pathBackup, true);
+
+            TCRWLockEnable = false;
         }
     }
 }

@@ -295,6 +295,54 @@ namespace SysBot.Pokemon.Discord
             }
         }
 
+        [Command("TradeCordVote")]
+        [Alias("v", "vote")]
+        [Summary("Vote for an event from a randomly selected list.")]
+        [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
+        public async Task EventVote()
+        {
+            DateTime.TryParse(Info.Hub.Config.TradeCord.EventEnd, out DateTime endTime);
+            bool ended = (Hub.Config.TradeCord.EnableEvent && endTime != default && DateTime.Now > endTime) || !Hub.Config.TradeCord.EnableEvent;
+            if (!ended)
+            {
+                var dur = endTime - DateTime.Now;
+                var msg = $"{(dur.Days > 0 ? $"{dur.Days}d " : "")}{(dur.Hours > 0 ? $"{dur.Hours}h " : "")}{(dur.Minutes < 2 ? "1m" : dur.Minutes > 0 ? $"{dur.Minutes}m" : "")}";
+                await ReplyAsync($"{Hub.Config.TradeCord.PokeEventType} event is already ongoing and will last {(endTime == default ? "until the bot owner stops it" : $"for about {msg}")}.");
+                return;
+            }
+
+            bool canReact = Context.Guild.CurrentUser.GetPermissions(Context.Channel as IGuildChannel).AddReactions;
+            if (!canReact)
+            {
+                await ReplyAsync("Cannot start the vote due to missing permissions.");
+                return;
+            }
+
+            var timeRemaining = TradeExtensions.EventVoteTimer - DateTime.Now;
+            if (timeRemaining.TotalSeconds > 0)
+            {
+                await ReplyAsync($"Please try again in about {(timeRemaining.Hours > 1 ? $"{timeRemaining.Hours} hours and " : timeRemaining.Hours > 0 ? $"{timeRemaining.Hours} hour and " : "")}{(timeRemaining.Minutes < 2 ? "1 minute" : $"{timeRemaining.Minutes} minutes")}");
+                return;
+            }
+
+            TradeExtensions.EventVoteTimer = DateTime.Now.AddMinutes(Hub.Config.TradeCord.TradeCordEventCooldown + Hub.Config.TradeCord.TradeCordEventDuration);
+            List<PokeEventType> events = new();
+            PokeEventType[] vals = (PokeEventType[])Enum.GetValues(typeof(PokeEventType));
+            while (events.Count < 5)
+            {
+                var rand = vals[TradeExtensions.Random.Next(vals.Length)];
+                if (!events.Contains(rand))
+                    events.Add(rand);
+            }
+
+            var t = Task.Run(async () => await EventVoteCalc(events).ConfigureAwait(false));
+            var index = t.Result;
+            Hub.Config.TradeCord.PokeEventType = events[index];
+            Hub.Config.TradeCord.EnableEvent = true;
+            Hub.Config.TradeCord.EventEnd = DateTime.Now.AddMinutes(Hub.Config.TradeCord.TradeCordEventDuration).ToString();
+            await ReplyAsync($"{events[index]} event has begun and will last {(Hub.Config.TradeCord.TradeCordEventDuration < 2 ? "1 minute" : $"{Hub.Config.TradeCord.TradeCordEventDuration} minutes")}!");
+        }
+
         [Command("TradeCordCatch")]
         [Alias("k", "catch")]
         [Summary("Catch a random Pokémon.")]
@@ -325,7 +373,8 @@ namespace SysBot.Pokemon.Discord
 
                     if (TradeExtensions.SelfBotScanner(TCInfo.UserID, Info.Hub.Config.TradeCord.TradeCordCooldown))
                     {
-                        if (await ReactionVerification().ConfigureAwait(false))
+                        var t = Task.Run(async () => await ReactionVerification().ConfigureAwait(false));
+                        if (t.Result)
                             return false;
                     }
                 }
@@ -384,7 +433,7 @@ namespace SysBot.Pokemon.Discord
             }
 
             if (!await FuncCatch().ConfigureAwait(false))
-                TradeExtensions.CommandInProgress.Remove(TCInfo.UserID);
+                TradeExtensions.CommandInProgress.TryTake(out _);
         }
 
         [Command("TradeCord")]
@@ -441,7 +490,7 @@ namespace SysBot.Pokemon.Discord
             }
 
             if (!await TradeFunc().ConfigureAwait(false))
-                TradeExtensions.CommandInProgress.Remove(TCInfo.UserID);
+                TradeExtensions.CommandInProgress.TryTake(out _);
         }
 
         [Command("TradeCord")]
@@ -608,7 +657,7 @@ namespace SysBot.Pokemon.Discord
             }
 
             if (!await FuncMassRelease().ConfigureAwait(false))
-                TradeExtensions.CommandInProgress.Remove(TCInfo.UserID);
+                TradeExtensions.CommandInProgress.TryTake(out _);
         }
 
         [Command("TradeCordRelease")]
@@ -652,7 +701,7 @@ namespace SysBot.Pokemon.Discord
             }
 
             if (!await FuncRelease().ConfigureAwait(false))
-                TradeExtensions.CommandInProgress.Remove(TCInfo.UserID);
+                TradeExtensions.CommandInProgress.TryTake(out _);
         }
 
         [Command("TradeCordDaycare")]
@@ -785,14 +834,14 @@ namespace SysBot.Pokemon.Discord
             }
 
             if (!await FuncDC().ConfigureAwait(false))
-                TradeExtensions.CommandInProgress.Remove(TCInfo.UserID);
+                TradeExtensions.CommandInProgress.TryTake(out _);
         }
 
         [Command("TradeCordGift")]
         [Alias("gift", "g")]
         [Summary("Gifts a Pokémon to a mentioned user.")]
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
-        public async Task Gift([Summary("Numerical catch ID")] string id, [Summary("User mention")] string _)
+        public async Task Gift([Summary("Numerical catch ID")] string id, [Summary("User mention")] string mention)
         {
             async Task<bool> FuncGift()
             {
@@ -812,6 +861,11 @@ namespace SysBot.Pokemon.Discord
                 else if (Context.Message.MentionedUsers.First().Id == Context.User.Id)
                 {
                     await Context.Message.Channel.SendMessageAsync("...Why?").ConfigureAwait(false);
+                    return false;
+                }
+                else if (Context.Message.MentionedUsers.First().IsBot)
+                {
+                    await Context.Message.Channel.SendMessageAsync($"You tried to gift your Pokémon to {Context.Message.MentionedUsers.First().Username} but it came back!").ConfigureAwait(false);
                     return false;
                 }
 
@@ -861,7 +915,7 @@ namespace SysBot.Pokemon.Discord
             }
 
             if (!await FuncGift().ConfigureAwait(false))
-                TradeExtensions.CommandInProgress.Remove(TCInfo.UserID);
+                TradeExtensions.CommandInProgress.TryTake(out _);
         }
 
         [Command("TradeCordTrainerInfoSet")]
@@ -912,7 +966,7 @@ namespace SysBot.Pokemon.Discord
             }
 
             if (!await FuncTrainerSet().ConfigureAwait(false))
-                TradeExtensions.CommandInProgress.Remove(TCInfo.UserID);
+                TradeExtensions.CommandInProgress.TryTake(out _);
         }
 
         [Command("TradeCordTrainerInfo")]
@@ -1001,7 +1055,7 @@ namespace SysBot.Pokemon.Discord
             }
 
             if (!await FuncFav().ConfigureAwait(false))
-                TradeExtensions.CommandInProgress.Remove(TCInfo.UserID);
+                TradeExtensions.CommandInProgress.TryTake(out _);
         }
 
         [Command("TradeCordDex")]
@@ -1127,7 +1181,7 @@ namespace SysBot.Pokemon.Discord
             }
 
             if (!await FuncDexPerks().ConfigureAwait(false))
-                TradeExtensions.CommandInProgress.Remove(TCInfo.UserID);
+                TradeExtensions.CommandInProgress.TryTake(out _);
         }
 
         [Command("TradeCordSpeciesBoost")]
@@ -1161,12 +1215,12 @@ namespace SysBot.Pokemon.Discord
             }
 
             if (!await FuncBoost().ConfigureAwait(false))
-                TradeExtensions.CommandInProgress.Remove(TCInfo.UserID);
+                TradeExtensions.CommandInProgress.TryTake(out _);
         }
 
-        [Command("TradeCordCommandClear")]
-        [Alias("cc")]
-        [Summary("Clear the mentioned user's command queue and entry in the ignore list.")]
+        [Command("TradeCordMuteClear")]
+        [Alias("mc")]
+        [Summary("Clear the mentioned user's entry in the ignore list.")]
         [RequireSudo]
         public async Task TradeCordCommandClear([Remainder] string _)
         {
@@ -1182,10 +1236,32 @@ namespace SysBot.Pokemon.Discord
             }
 
             var usr = Context.Message.MentionedUsers.First();
-            bool command = TradeExtensions.CommandInProgress.Remove(usr.Id);
-            bool ignore = TradeExtensions.IgnoreList.Remove(usr.Id);
-            var msg = command || ignore ? $"Removed {(command && ignore ? "a queued command and ignore entry" : command ? "a queued command" : "an ignore entry")} for {usr.Username}." : $"{usr.Username} has no queued commands or ignore entries.";
+            bool mute = TradeExtensions.MuteList.Remove(usr.Id);
+            var msg = mute ? $"{usr.Username} was unmuted." : $"{usr.Username} isn't muted.";
             await ReplyAsync(msg).ConfigureAwait(false);
+        }
+
+        [Command("TradeCordDeleteUser")]
+        [Alias("du")]
+        [Summary("Delete a user and all their catches via a provided numerical user ID.")]
+        [RequireOwner]
+        public async Task TradeCordDeleteUser(string input)
+        {
+            if (!ulong.TryParse(input, out ulong id))
+            {
+                await ReplyAsync("Could not parse user. Make sure you're entering a numerical user ID.").ConfigureAwait(false);
+                return;
+            }
+
+            var user = TradeExtensions.UserInfo.Users.FirstOrDefault(x => x.UserID == id);
+            if (user == default)
+            {
+                await ReplyAsync("Could not find data for this user.").ConfigureAwait(false);
+                return;
+            }
+
+            TradeExtensions.DeleteUserData(id);
+            await ReplyAsync("Successfully removed the specified user's data.").ConfigureAwait(false);
         }
 
         private void TradeCordDump(string subfolder, PK8 pk, out int index)
@@ -1252,7 +1328,7 @@ namespace SysBot.Pokemon.Discord
                 Directory.CreateDirectory($"TradeCord\\{id}");
                 Directory.CreateDirectory($"TradeCord\\Backup\\{id}");
             }
-            else if (TradeExtensions.IgnoreList.Contains(id))
+            else if (TradeExtensions.MuteList.Contains(id))
             {
                 await ReplyAsync("Command ignored due to suspicion of you running a script. Contact the bot owner if this is a false-positive.").ConfigureAwait(false);
                 return false;
@@ -1273,7 +1349,7 @@ namespace SysBot.Pokemon.Discord
             }
 
             if (!update)
-                TradeExtensions.CommandInProgress.Remove(TCInfo.UserID);
+                TradeExtensions.CommandInProgress.TryTake(out _);
             return true;
         }
 
@@ -1383,8 +1459,8 @@ namespace SysBot.Pokemon.Discord
             var userId = Context.User.Id;
             IEmote[] reactions = { new Emoji("⬅️"), new Emoji("➡️"), new Emoji("⬆️"), new Emoji("⬇️") };
             await msg.AddReactionsAsync(reactions).ConfigureAwait(false);
-            var sw = new Stopwatch();
             var embed = new EmbedBuilder { Color = Color.DarkBlue }.AddField(x => { x.Name = nameMsg; x.IsInline = false; }).WithFooter(x => { x.IconUrl = "https://i.imgur.com/nXNBrlr.png"; });
+            var sw = new Stopwatch();
             sw.Start();
 
             while (sw.ElapsedMilliseconds < 20_000)
@@ -1473,8 +1549,33 @@ namespace SysBot.Pokemon.Discord
                 }
             }
             await msg.AddReactionAsync(new Emoji("❌")).ConfigureAwait(false);
-            TradeExtensions.IgnoreList.Add(Context.User.Id);
+            TradeExtensions.MuteList.Add(Context.User.Id);
             return true;
+        }
+
+        private async Task<int> EventVoteCalc(List<PokeEventType> events)
+        {
+            IEmote[] reactions = { new Emoji("1️⃣"), new Emoji("2️⃣"), new Emoji("3️⃣"), new Emoji("4️⃣"), new Emoji("5️⃣") };
+            string text = "The community vote has started! You have 30 seconds to vote for the next event!\n";
+            for (int i = 0; i < events.Count; i++)
+                text += $"{i + 1}. {events[i]}\n";
+
+            var embed = new EmbedBuilder { Color = Color.DarkBlue }.AddField(x =>
+            {
+                x.Name = "Community Event Vote";
+                x.Value = text;
+                x.IsInline = false;
+            });
+
+            var msg = await Context.Message.Channel.SendMessageAsync(embed: embed.Build()).ConfigureAwait(false);
+            await msg.AddReactionsAsync(reactions).ConfigureAwait(false);
+
+            await Task.Delay(30_000).ConfigureAwait(false);
+            await msg.UpdateAsync().ConfigureAwait(false);
+            List<int> reactList = new();
+            for (int i = 0; i < 5; i++)
+                reactList.Add(msg.Reactions.Values.ToArray()[i].ReactionCount);
+            return reactList.IndexOf(reactList.Max());
         }
 
         private async Task EmbedUtil(EmbedBuilder embed, string name, string value)

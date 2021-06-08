@@ -20,6 +20,12 @@ namespace SysBot.Pokemon
         [Category(FeatureToggle), Description("Enter the amount of time in seconds until a user can catch again.")]
         public int TradeCordCooldown { get; set; } = 60;
 
+        [Category(FeatureToggle), Description("Enter the amount of time in minutes until users can invoke the vote command again.")]
+        public int TradeCordEventCooldown { get; set; } = 60;
+
+        [Category(FeatureToggle), Description("Enter the amount of time in minutes a user-invoked event will last.")]
+        public int TradeCordEventDuration { get; set; } = 30;
+
         [Category(FeatureToggle), Description("Enter how frequently (in seconds) \"UserInfo.json\" should be updated.")]
         public int ConfigUpdateInterval { get; set; } = 60;
 

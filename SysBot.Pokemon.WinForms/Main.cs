@@ -128,7 +128,7 @@ namespace SysBot.Pokemon.WinForms
             });
             File.WriteAllText(ConfigPath, lines);
             if (TradeExtensions.TCInitialized)
-                TradeExtensions.SerializeInfo(TradeExtensions.UserInfo, "TradeCord\\UserInfo.json", true);
+                TradeExtensions.SerializeInfo(TradeExtensions.UserInfo, "TradeCord\\UserInfo.json");
         }
 
         private void B_Start_Click(object sender, EventArgs e)

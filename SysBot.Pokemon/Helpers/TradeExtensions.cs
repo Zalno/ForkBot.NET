@@ -2,10 +2,8 @@
 using System.IO;
 using System.Linq;
 using System.Diagnostics;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 using PKHeX.Core;
 using PKHeX.Core.AutoMod;
 using Newtonsoft.Json;
@@ -14,39 +12,30 @@ namespace SysBot.Pokemon
 {
     public class TradeExtensions
     {
-        public static Random Random = new();
-        public static bool TCInitialized;
-        private static bool TCRWLockEnable;
-        private static readonly object _sync = new();
         public static Dictionary<ulong, List<DateTime>> UserCommandTimestamps = new();
-        public static BlockingCollection<ulong> CommandInProgress = new(1);
-        public static BlockingCollection<ulong> GiftInProgress = new(1);
-        public static readonly HashSet<ulong> MuteList = new();
-        public static List<string> TradeCordPath = new();
-        public static HashSet<string> TradeCordCooldown = new();
-        public static DateTime EventVoteTimer = new();
-        private static readonly string InfoPath = "TradeCord\\UserInfo.json";
         private static readonly string InfoBackupPath = "TradeCord\\UserInfo_backup.json";
+        private static readonly string InfoPath = "TradeCord\\UserInfo.json";
+        public static Dictionary<ulong, DateTime> TradeCordCooldown = new();
+        public static HashSet<ulong> MuteList = new();
+        public static List<string> TradeCordPath = new();
+        public static DateTime EventVoteTimer = new();
         public static TCUserInfoRoot UserInfo = new();
+        private static readonly object _sync = new();
+        public static readonly Random Random = new();
+        private static DateTime ConfigTimer = DateTime.Now;
+        private static bool TCRWLockEnable;
+        public static bool TCInitialized;
+
         public static int XCoordStart = 0;
         public static int YCoordStart = 0;
 
-        public static int[] TradeEvo = { (int)Species.Machoke, (int)Species.Haunter, (int)Species.Boldore, (int)Species.Gurdurr, (int)Species.Phantump, (int)Species.Gourgeist };
-        public static int[] ShinyLock = { (int)Species.Victini, (int)Species.Keldeo, (int)Species.Volcanion, (int)Species.Cosmog, (int)Species.Cosmoem, (int)Species.Magearna,
-                                          (int)Species.Marshadow, (int)Species.Zacian, (int)Species.Zamazenta, (int)Species.Eternatus, (int)Species.Kubfu, (int)Species.Urshifu,
-                                          (int)Species.Zarude, (int)Species.Glastrier, (int)Species.Spectrier, (int)Species.Calyrex };
+        private static readonly int[] GalarFossils = { 880, 881, 882, 883 };
+        private static readonly int[] SilvallyMemory = { 0, 904, 905, 906, 907, 908, 909, 910, 911, 912, 913, 914, 915, 916, 917, 918, 919, 920 };
+        private static readonly int[] GenesectDrives = { 0, 116, 117, 118, 119 };
+        public static readonly int[] Pokeball = { 151, 722, 723, 724, 725, 726, 727, 728, 729, 730, 772, 773, 789, 790, 810, 811, 812, 813, 814, 815, 816, 817, 818, 891, 892 };
+        public static readonly int[] Amped = { 3, 4, 2, 8, 9, 19, 22, 11, 13, 14, 0, 6, 24 };
+        public static readonly int[] LowKey = { 1, 5, 7, 10, 12, 15, 16, 17, 18, 20, 21, 23 };
 
-        public static int[] PikaClones = { 25, 26, 172, 587, 702, 777, 877 };
-        public static int[] CherishOnly = { 719, 721, 801, 802, 807, 893 };
-        public static int[] Pokeball = { 151, 722, 723, 724, 725, 726, 727, 728, 729, 730, 772, 773, 789, 790, 810, 811, 812, 813, 814, 815, 816, 817, 818, 891, 892 };
-        public static int[] GalarFossils = { 880, 881, 882, 883 };
-        public static int[] SilvallyMemory = { 0, 904, 905, 906, 907, 908, 909, 910, 911, 912, 913, 914, 915, 916, 917, 918, 919, 920 };
-        public static int[] GenesectDrives = { 0, 116, 117, 118, 119 };
-        public static int[] Amped = { 3, 4, 2, 8, 9, 19, 22, 11, 13, 14, 0, 6, 24 };
-        public static int[] LowKey = { 1, 5, 7, 10, 12, 15, 16, 17, 18, 20, 21, 23 };
-
-        public static string[] PartnerPikachuHeadache = { "-Original", "-Partner", "-Hoenn", "-Sinnoh", "-Unova", "-Alola", "-Kalos", "-World" };
-        public static string[] LGPEBalls = { "Poke", "Premier", "Great", "Ultra", "Master" };
         public static readonly string[] Characteristics =
         {
             "Takes plenty of siestas",
@@ -56,6 +45,15 @@ namespace SysBot.Pokemon
             "Mischievous",
             "Somewhat vain",
         };
+
+        public class TC_CommandContext
+        {
+            public string Username { get; set; } = string.Empty;
+            public ulong ID { get; set; }
+            public string GifteeName { get; set; } = string.Empty;
+            public ulong GifteeID { get; set; }
+            public TCCommandContext Context { get; set; }
+        }
 
         public class TCRng
         {
@@ -67,8 +65,6 @@ namespace SysBot.Pokemon
             public int CherishRNG { get; set; }
             public int SpeciesRNG { get; set; }
             public int SpeciesBoostRNG { get; set; }
-            public PK8 CatchPKM { get; set; } = new();
-            public PK8 EggPKM { get; set; } = new();
         }
 
         public class TCUserInfoRoot
@@ -77,6 +73,7 @@ namespace SysBot.Pokemon
 
             public class TCUserInfo
             {
+                public string Username { get; set; } = string.Empty;
                 public ulong UserID { get; set; }
                 public int CatchCount { get; set; }
                 public Daycare1 Daycare1 { get; set; } = new();
@@ -125,61 +122,28 @@ namespace SysBot.Pokemon
             }
         }
 
-        private static async Task SerializationMonitor(int interval)
-        {
-            var sw = new Stopwatch();
-            sw.Start();
-            while (true)
-            {
-                if (sw.ElapsedMilliseconds / 1000 >= interval && !TCRWLockEnable)
-                {
-                    var fileSize = new FileInfo(InfoPath).Length;
-                    if (File.Exists(InfoPath) && fileSize > 2)
-                        File.Copy(InfoPath, InfoBackupPath, true);
-
-                    SerializeInfo(UserInfo, InfoPath);
-                    sw.Restart();
-                }
-                else await Task.Delay(10_000).ConfigureAwait(false);
-            }
-        }
-
         public static bool SelfBotScanner(ulong id, int cd)
         {
             if (UserCommandTimestamps.TryGetValue(id, out List<DateTime> timeStamps))
             {
-                if (timeStamps.Count >= 15)
-                {
-                    int[] delta = new int[timeStamps.Count - 1];
-                    bool[] comp = new bool[delta.Length - 1];
+                int[] delta = new int[timeStamps.Count - 1];
+                bool[] comp = new bool[delta.Length - 1];
 
-                    for (int i = 1; i < timeStamps.Count; i++)
-                        delta[i - 1] = (int)(timeStamps[i].Subtract(timeStamps[i - 1]).TotalSeconds - cd);
+                for (int i = 1; i < timeStamps.Count; i++)
+                    delta[i - 1] = (int)(timeStamps[i].Subtract(timeStamps[i - 1]).TotalSeconds - cd);
 
-                    for (int i = 1; i < delta.Length; i++)
-                        comp[i - 1] = delta[i] == delta[i - 1] || delta[i] - delta[i - 1] == -2 || delta[i] - delta[i - 1] == -1 || delta[i] - delta[i - 1] == 0 || delta[i] - delta[i - 1] == 1 || delta[i] - delta[i - 1] == 2;
+                for (int i = 1; i < delta.Length; i++)
+                    comp[i - 1] = delta[i] == delta[i - 1] || delta[i] - delta[i - 1] == -2 || delta[i] - delta[i - 1] == -1 || delta[i] - delta[i - 1] == 0 || delta[i] - delta[i - 1] == 1 || delta[i] - delta[i - 1] == 2;
 
-                    UserCommandTimestamps[id].Clear();
-                    if (comp.Any(x => x == false))
-                        return false;
-                    else return true;
-                }
+                UserCommandTimestamps[id].Clear();
+                if (comp.Any(x => x == false))
+                    return false;
+                else return true;
             }
             return false;
         }
 
-        public static bool ShinyLockCheck(int species, string ball, bool form)
-        {
-            if (ShinyLock.Contains(species))
-                return true;
-            else if (form && (species == (int)Species.Zapdos || species == (int)Species.Moltres || species == (int)Species.Articuno))
-                return true;
-            else if (ball.Contains("Beast") && (species == (int)Species.Poipole || species == (int)Species.Naganadel))
-                return true;
-            else return false;
-        }
-
-        public static PKM RngRoutine(PKM pkm, IBattleTemplate template, Shiny shiny)
+        public static PK8 RngRoutine(PKM pkm, IBattleTemplate template, Shiny shiny)
         {
             pkm.Form = pkm.Species == (int)Species.Silvally || pkm.Species == (int)Species.Genesect ? Random.Next(pkm.PersonalInfo.FormCount) : pkm.Form;
             if (pkm.Species == (int)Species.Alcremie)
@@ -303,7 +267,7 @@ namespace SysBot.Pokemon
                 BallApplicator.ApplyBallLegalRandom(pkm);
 
             pkm = TrashBytes(pkm);
-            return pkm;
+            return (PK8)pkm;
         }
 
         public static PKM EggRngRoutine(TCUserInfoRoot.TCUserInfo info, string trainerInfo, int evo1, int evo2, bool star, bool square)
@@ -486,7 +450,7 @@ namespace SysBot.Pokemon
 
             if (form == 0)
                 return "";
-            else return "-" + formString[form];
+            else return $"-{formString[form]}";
         }
 
         private static int DittoSlot(int species1, int species2)
@@ -615,54 +579,111 @@ namespace SysBot.Pokemon
             }
         }
 
-        public static async Task<TCUserInfoRoot.TCUserInfo> GetUserInfo(ulong id, int interval = 0, bool gift = false)
+        public static TradeCordHelper.Results ProcessTradeCord(TC_CommandContext ctx, string[] input, bool update, TradeCordSettings settings)
         {
             if (!TCInitialized)
             {
-                TCInitialized = true;
-                UserInfo = GetRoot<TCUserInfoRoot>(InfoPath);
-                _ = Task.Run(() => SerializationMonitor(interval));
+                var current = Process.GetCurrentProcess();
+                var all = Process.GetProcessesByName(current.ProcessName);
+                if (all.Length < 2)
+                {
+                    TCInitialized = true;
+                    UserInfo = GetRoot<TCUserInfoRoot>(InfoPath);
+                }
+                else
+                {
+                    Base.LogUtil.LogText("Another TradeCord instance is already running! Killing the process.");
+                    Environment.Exit(0);
+                }
             }
 
-            if (!gift)
+            lock (_sync)
             {
-                while (TCRWLockEnable || !CommandInProgress.TryAdd(id))
-                    await Task.Delay(0_100).ConfigureAwait(false);
-            }
-            else
-            {
-                while (TCRWLockEnable || !GiftInProgress.TryAdd(id))
-                    await Task.Delay(0_100).ConfigureAwait(false);
-            }
+                var user = GetUserInfo(ctx, false);
+                var traded = user.Catches.ToList().FindAll(x => x.Traded);
+                var tradeSignal = TradeCordPath.FirstOrDefault(x => x.Contains(user.UserID.ToString()));
+                if (traded.Count != 0 && tradeSignal == default)
+                {
+                    foreach (var trade in traded)
+                    {
+                        if (!File.Exists(trade.Path))
+                            user.Catches.Remove(trade);
+                        else trade.Traded = false;
+                    }
+                    UpdateUserInfo(user);
+                }
 
-            while (TCRWLockEnable || (!gift && GiftInProgress.Contains(id)))
-                await Task.Delay(0_100).ConfigureAwait(false);
+                TCUserInfoRoot.TCUserInfo giftee = new();
+                if (ctx.Context == TCCommandContext.Gift)
+                    giftee = GetUserInfo(ctx, true);
 
-            var user = UserInfo.Users.FirstOrDefault(x => x.UserID == id);
+                var helper = new TradeCordHelper(settings);
+                var task = ctx.Context switch
+                {
+                    TCCommandContext.Catch => helper.CatchHandler(user),
+                    TCCommandContext.Trade => helper.TradeHandler(user, input[0]),
+                    TCCommandContext.List => helper.ListHandler(user, input[0]),
+                    TCCommandContext.Info => helper.InfoHandler(user, input[0]),
+                    TCCommandContext.MassRelease => helper.MassReleaseHandler(user, input[0]),
+                    TCCommandContext.Release => helper.ReleaseHandler(user, input[0]),
+                    TCCommandContext.DaycareInfo => helper.DaycareInfoHandler(user),
+                    TCCommandContext.Daycare => helper.DaycareHandler(user, input[0], input[1]),
+                    TCCommandContext.Gift => helper.GiftHandler(user, giftee, input[0]),
+                    TCCommandContext.TrainerInfoSet => helper.TrainerInfoSetHandler(user, input),
+                    TCCommandContext.TrainerInfo => helper.TrainerInfoHandler(user),
+                    TCCommandContext.FavoritesInfo => helper.FavoritesInfoHandler(user),
+                    TCCommandContext.Favorites => helper.FavoritesHandler(user, input[0]),
+                    TCCommandContext.Dex => helper.DexHandler(user, input[0]),
+                    TCCommandContext.Perks => helper.PerkHandler(user, input[0]),
+                    TCCommandContext.Boost => helper.SpeciesBoostHandler(user, input[0]),
+                    _ => throw new NotImplementedException(),
+                };
+                var result = Task.Run(() => task).Result;
+
+                if (update)
+                {
+                    UpdateUserInfo(result.User);
+                    if (ctx.Context == TCCommandContext.Gift)
+                        UpdateUserInfo(result.Giftee);
+                }
+
+                var delta = (DateTime.Now - ConfigTimer).TotalSeconds;
+                if (delta >= settings.ConfigUpdateInterval)
+                {
+                    SerializeInfo(UserInfo, InfoPath);
+                    ConfigTimer = DateTime.Now;
+                }
+                return result;
+            }
+        }
+
+        private static TCUserInfoRoot.TCUserInfo GetUserInfo(TC_CommandContext ctx, bool gift)
+        {
+            TCUserInfoRoot.TCUserInfo user;
+            user = UserInfo.Users.FirstOrDefault(x => x.UserID == (gift ? ctx.GifteeID : ctx.ID));
+
             if (user == null)
-                user = new TCUserInfoRoot.TCUserInfo { UserID = id };
+                user = new TCUserInfoRoot.TCUserInfo { UserID = gift ? ctx.GifteeID : ctx.ID, Username = gift ? ctx.GifteeName : ctx.Username };
+
+            if (user.Username == string.Empty)
+                user.Username = gift ? ctx.GifteeName : ctx.Username;
+
             return user;
         }
 
-        public static void UpdateUserInfo(TCUserInfoRoot.TCUserInfo info, bool remove = true, bool gift = false)
+        public static void UpdateUserInfo(TCUserInfoRoot.TCUserInfo user)
         {
-            lock (_sync)
-            {
-                TCRWLockEnable = true;
-                UserInfo.Users.RemoveWhere(x => x.UserID == info.UserID);
-                UserInfo.Users.Add(info);
-                TCRWLockEnable = false;
-            }
-
-            if (remove)
-                CommandInProgress.TryTake(out _);
-            if (gift)
-                GiftInProgress.TryTake(out _);
+            UserInfo.Users.RemoveWhere(x => x.UserID == user.UserID);
+            UserInfo.Users.Add(user);
         }
 
         public static void SerializeInfo(object root, string filePath)
         {
             TCRWLockEnable = true;
+            var fileSize = new FileInfo(InfoPath).Length;
+            if (File.Exists(InfoPath) && fileSize > 2)
+                File.Copy(InfoPath, InfoBackupPath, true);
+
             while (true)
             {
                 try
@@ -680,7 +701,7 @@ namespace SysBot.Pokemon
                 }
                 catch
                 {
-                    Thread.Sleep(0_100);
+                    Task.Delay(0_100);
                 }
             }
             TCRWLockEnable = false;
@@ -774,25 +795,19 @@ namespace SysBot.Pokemon
             };
         }
 
-        public static void DeleteUserData(ulong id)
+        public static bool DeleteUserData(ulong id)
         {
-            while (true)
-            {
-                bool command = CommandInProgress.Count > 0;
-                bool gift = GiftInProgress.Count > 0;
-                if (command || gift || TCRWLockEnable)
-                    Task.Delay(0_100);
-                else break;
-            }
+            while (TCRWLockEnable)
+                Task.Delay(0_100);
 
             TCRWLockEnable = true;
-            while (true)
+            var user = UserInfo.Users.FirstOrDefault(x => x.UserID == id);
+            if (user == default)
             {
-                var user = UserInfo.Users.FirstOrDefault(x => x.UserID == id);
-                if (user == default)
-                    break;
-                else UserInfo.Users.Remove(user);
+                TCRWLockEnable = false;
+                return false;
             }
+            else UserInfo.Users.Remove(user);
 
             var path = $"TradeCord\\{id}";
             var pathBackup = $"TradeCord\\Backup\\{id}";
@@ -803,6 +818,7 @@ namespace SysBot.Pokemon
                 Directory.Delete(pathBackup, true);
 
             TCRWLockEnable = false;
+            return true;
         }
     }
 }

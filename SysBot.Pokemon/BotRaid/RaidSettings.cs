@@ -96,7 +96,7 @@ namespace SysBot.Pokemon
             public int DateAdvanceDelay { get; set; } = 0;
         }
 
-        public class AutoRollCategoryConverter : TypeConverter
+        private sealed class AutoRollCategoryConverter : TypeConverter
         {
             public override bool GetPropertiesSupported(ITypeDescriptorContext context) => true;
 

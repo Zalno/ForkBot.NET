@@ -83,7 +83,7 @@ namespace SysBot.Pokemon
             public Characteristics Characteristic { get; set; } = Characteristics.Any;
         }
 
-        public class DenFiltersCategoryConverter : TypeConverter
+        private sealed class DenFiltersCategoryConverter : TypeConverter
         {
             public override bool GetPropertiesSupported(ITypeDescriptorContext context) => true;
 

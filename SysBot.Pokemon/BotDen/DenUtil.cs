@@ -314,8 +314,8 @@ namespace SysBot.Pokemon
             return -1;
         }
 
-        public static ulong eventHash = 1721953670860364124u;
-        public static ulong[,] denHashes = {
+        private static readonly ulong eventHash = 1721953670860364124u;
+        private static readonly ulong[,] denHashes = {
         { 1675062357515959378u, 13439833545771248589u },
         { 1676893044376552243u, 13440787921864346512u },
         { 1676899641446321509u, 4973137107049022145u },

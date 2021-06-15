@@ -88,7 +88,7 @@ namespace SysBot.Pokemon
             public string LairRewardsScreenValue { get; set; } = "0x00008DC0";
         }
 
-        public class LairScreenValueCategoryConverter : TypeConverter
+        private sealed class LairScreenValueCategoryConverter : TypeConverter
         {
             public override bool GetPropertiesSupported(ITypeDescriptorContext context) => true;
 

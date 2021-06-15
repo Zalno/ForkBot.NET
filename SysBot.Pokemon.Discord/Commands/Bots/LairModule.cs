@@ -48,7 +48,7 @@ namespace SysBot.Pokemon.Discord
                 SysCordInstance.Self.Hub.Config.Lair.LairSpeciesQueue[i] = parse;
                 if (i == 2)
                 {
-                    LairBot.DiscordQueueOverride = true;
+                    LairBotUtil.DiscordQueueOverride = true;
                     var msg = $"{Context.User.Mention} Lair Species have been set to {string.Join(", ", SysCordInstance.Self.Hub.Config.Lair.LairSpeciesQueue)}.";
                     await ReplyAsync(msg).ConfigureAwait(false);
                 }

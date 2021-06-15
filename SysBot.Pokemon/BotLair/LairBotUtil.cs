@@ -10,6 +10,7 @@ namespace SysBot.Pokemon
     public sealed class LairBotUtil
     {
         public static CancellationTokenSource EmbedSource = new();
+        public static bool DiscordQueueOverride;
         public static bool EmbedsInitialized;
         public static (PK8?, bool) EmbedMon;
         public static int TerrainDur = -1;

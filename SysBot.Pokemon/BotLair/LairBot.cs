@@ -39,21 +39,20 @@ namespace SysBot.Pokemon
         private readonly LairOffsetValues OffsetValues;
         private PK8 LairBoss = new();
         private PK8 PlayerPk = new();
-        public static bool DiscordQueueOverride = false;
 
-        private class LairCount
+        sealed private class LairCount
         {
             public double AdventureCount { get; set; }
             public double WinCount { get; set; }
         }
 
-        private class KeepPathTotals
+        sealed private class KeepPathTotals
         {
             public int KeepPathAdventures { get; set; }
             public int KeepPathWins { get; set; }
         }
 
-        private class LairOffsetValues
+        sealed private class LairOffsetValues
         {
             public ushort LairLobby { get; set; }
             public ushort LairAdventurePath { get; set; }
@@ -659,7 +658,7 @@ namespace SysBot.Pokemon
 
         private async Task<int> SetHuntedPokemon(CancellationToken token)
         {
-            if (HackyNoteCheck == -1 || DiscordQueueOverride)
+            if (HackyNoteCheck == -1 || LairBotUtil.DiscordQueueOverride)
             {
                 for (int i = 0; i < 4; i++) // First note shifts due to yet unknown reasons, just clear possible slots, check which note to use on startup and after catching a legendary.
                     await Connection.WriteBytesAsync(new byte[] { 0 }, i == 0 ? LairSpeciesNote1 : i == 1 ? LairSpeciesNote2 : i == 2 ? LairSpeciesNote3 : LairSpeciesNote4, token);
@@ -692,9 +691,9 @@ namespace SysBot.Pokemon
             }
 
             var note = BitConverter.ToUInt16(await Connection.ReadBytesAsync(HackyNoteCheck == 1 ? LairSpeciesNote1 : LairSpeciesNote2, 2, token).ConfigureAwait(false), 0);
-            if (DiscordQueueOverride || (Settings.LairSpeciesQueue[0] != LairSpecies.None && note == 0))
+            if (LairBotUtil.DiscordQueueOverride || (Settings.LairSpeciesQueue[0] != LairSpecies.None && note == 0))
             {
-                DiscordQueueOverride = false;
+                LairBotUtil.DiscordQueueOverride = false;
                 for (int i = 0; i < Settings.LairSpeciesQueue.Length; i++)
                 {
                     var caughtFlag = await Connection.ReadBytesAsync(GetFlagOffset((int)Settings.LairSpeciesQueue[i]), 2, token).ConfigureAwait(false);

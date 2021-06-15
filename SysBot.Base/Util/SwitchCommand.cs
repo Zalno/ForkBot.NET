@@ -213,5 +213,12 @@ namespace SysBot.Base
         /// <param name="crlf">Line terminator (unused by USB's protocol)</param>
         /// <returns>Encoded command bytes</returns>
         public static byte[] ScreenOn(bool crlf = true) => Encode("screenOn", crlf);
+
+        /// <summary>
+        /// Takes and sends a raw screenshot.
+        /// </summary>
+        /// <param name="crlf">Line terminator (unused by USB's protocol)</param>
+        /// <returns>Encoded command bytes</returns>
+        public static byte[] Screengrab(bool crlf = true) => Encode("pixelPeek", crlf);
     }
 }

@@ -67,7 +67,7 @@ namespace SysBot.Pokemon.Discord
                 var la = new LegalityAnalysis(pkm);
                 var spec = GameInfo.Strings.Species[template.Species];
                 pkm = PKMConverter.ConvertToType(pkm, typeof(PK8), out _) ?? pkm;
-                if (Info.Hub.Config.Trade.Memes && await TrollAsync(pkm is not PK8 || !la.Valid, template).ConfigureAwait(false))
+                if (Info.Hub.Config.Trade.Memes && await TradeAdditionsModule.TrollAsync(Context, pkm is not PK8 || !la.Valid, template).ConfigureAwait(false))
 					return;
             	else if  (pkm is not PK8 || !la.Valid)
                 {

@@ -1192,4 +1192,24 @@
         Spectrier = 897,
         Calyrex = 898,
     }
+
+    public enum TCCommandContext
+    {
+        Catch,
+        Trade,
+        Gift,
+        Info,
+        List,
+        Release,
+        MassRelease,
+        TrainerInfo,
+        TrainerInfoSet,
+        Dex,
+        Perks,
+        Boost,
+        DaycareInfo,
+        Daycare,
+        FavoritesInfo,
+        Favorites,
+    }
 }

@@ -19,7 +19,7 @@ namespace SysBot.Pokemon
         public static HashSet<ulong> MuteList = new();
         public static List<string> TradeCordPath = new();
         public static DateTime EventVoteTimer = new();
-        public static TCUserInfoRoot UserInfo = new();
+        private static TCUserInfoRoot UserInfo = new();
         private static readonly object _sync = new();
         public static readonly Random Random = new();
         private static DateTime ConfigTimer = DateTime.Now;
@@ -599,61 +599,69 @@ namespace SysBot.Pokemon
 
             lock (_sync)
             {
-                var user = GetUserInfo(ctx, false);
-                var traded = user.Catches.ToList().FindAll(x => x.Traded);
-                var tradeSignal = TradeCordPath.FirstOrDefault(x => x.Contains(user.UserID.ToString()));
-                if (traded.Count != 0 && tradeSignal == default)
+                try
                 {
-                    foreach (var trade in traded)
+                    var user = GetUserInfo(ctx, false);
+                    var traded = user.Catches.ToList().FindAll(x => x.Traded);
+                    var tradeSignal = TradeCordPath.FirstOrDefault(x => x.Contains(user.UserID.ToString()));
+                    if (traded.Count != 0 && tradeSignal == default)
                     {
-                        if (!File.Exists(trade.Path))
-                            user.Catches.Remove(trade);
-                        else trade.Traded = false;
+                        foreach (var trade in traded)
+                        {
+                            if (!File.Exists(trade.Path))
+                                user.Catches.Remove(trade);
+                            else trade.Traded = false;
+                        }
+                        UpdateUserInfo(user);
                     }
-                    UpdateUserInfo(user);
-                }
 
-                TCUserInfoRoot.TCUserInfo giftee = new();
-                if (ctx.Context == TCCommandContext.Gift)
-                    giftee = GetUserInfo(ctx, true);
-
-                var helper = new TradeCordHelper(settings);
-                var task = ctx.Context switch
-                {
-                    TCCommandContext.Catch => helper.CatchHandler(user),
-                    TCCommandContext.Trade => helper.TradeHandler(user, input[0]),
-                    TCCommandContext.List => helper.ListHandler(user, input[0]),
-                    TCCommandContext.Info => helper.InfoHandler(user, input[0]),
-                    TCCommandContext.MassRelease => helper.MassReleaseHandler(user, input[0]),
-                    TCCommandContext.Release => helper.ReleaseHandler(user, input[0]),
-                    TCCommandContext.DaycareInfo => helper.DaycareInfoHandler(user),
-                    TCCommandContext.Daycare => helper.DaycareHandler(user, input[0], input[1]),
-                    TCCommandContext.Gift => helper.GiftHandler(user, giftee, input[0]),
-                    TCCommandContext.TrainerInfoSet => helper.TrainerInfoSetHandler(user, input),
-                    TCCommandContext.TrainerInfo => helper.TrainerInfoHandler(user),
-                    TCCommandContext.FavoritesInfo => helper.FavoritesInfoHandler(user),
-                    TCCommandContext.Favorites => helper.FavoritesHandler(user, input[0]),
-                    TCCommandContext.Dex => helper.DexHandler(user, input[0]),
-                    TCCommandContext.Perks => helper.PerkHandler(user, input[0]),
-                    TCCommandContext.Boost => helper.SpeciesBoostHandler(user, input[0]),
-                    _ => throw new NotImplementedException(),
-                };
-                var result = Task.Run(() => task).Result;
-
-                if (update)
-                {
-                    UpdateUserInfo(result.User);
+                    TCUserInfoRoot.TCUserInfo giftee = new();
                     if (ctx.Context == TCCommandContext.Gift)
-                        UpdateUserInfo(result.Giftee);
-                }
+                        giftee = GetUserInfo(ctx, true);
 
-                var delta = (DateTime.Now - ConfigTimer).TotalSeconds;
-                if (delta >= settings.ConfigUpdateInterval)
-                {
-                    SerializeInfo(UserInfo, InfoPath);
-                    ConfigTimer = DateTime.Now;
+                    var helper = new TradeCordHelper(settings);
+                    var task = ctx.Context switch
+                    {
+                        TCCommandContext.Catch => helper.CatchHandler(user),
+                        TCCommandContext.Trade => helper.TradeHandler(user, input[0]),
+                        TCCommandContext.List => helper.ListHandler(user, input[0]),
+                        TCCommandContext.Info => helper.InfoHandler(user, input[0]),
+                        TCCommandContext.MassRelease => helper.MassReleaseHandler(user, input[0]),
+                        TCCommandContext.Release => helper.ReleaseHandler(user, input[0]),
+                        TCCommandContext.DaycareInfo => helper.DaycareInfoHandler(user),
+                        TCCommandContext.Daycare => helper.DaycareHandler(user, input[0], input[1]),
+                        TCCommandContext.Gift => helper.GiftHandler(user, giftee, input[0]),
+                        TCCommandContext.TrainerInfoSet => helper.TrainerInfoSetHandler(user, input),
+                        TCCommandContext.TrainerInfo => helper.TrainerInfoHandler(user),
+                        TCCommandContext.FavoritesInfo => helper.FavoritesInfoHandler(user),
+                        TCCommandContext.Favorites => helper.FavoritesHandler(user, input[0]),
+                        TCCommandContext.Dex => helper.DexHandler(user, input[0]),
+                        TCCommandContext.Perks => helper.PerkHandler(user, input[0]),
+                        TCCommandContext.Boost => helper.SpeciesBoostHandler(user, input[0]),
+                        _ => throw new NotImplementedException(),
+                    };
+                    var result = Task.Run(() => task).Result;
+
+                    if (update)
+                    {
+                        UpdateUserInfo(result.User);
+                        if (ctx.Context == TCCommandContext.Gift)
+                            UpdateUserInfo(result.Giftee);
+                    }
+
+                    var delta = (DateTime.Now - ConfigTimer).TotalSeconds;
+                    if (delta >= settings.ConfigUpdateInterval)
+                    {
+                        SerializeInfo();
+                        ConfigTimer = DateTime.Now;
+                    }
+                    return result;
                 }
-                return result;
+                catch (Exception ex)
+                {
+                    Base.LogUtil.LogText($"Something went wrong during {ctx.Context} execution for {ctx.Username}.\nMessage: {ex.Message}\nStack: {ex.StackTrace}\nInner: {ex.InnerException}");
+                    return new TradeCordHelper.Results();
+                }
             }
         }
 
@@ -677,7 +685,7 @@ namespace SysBot.Pokemon
             UserInfo.Users.Add(user);
         }
 
-        public static void SerializeInfo(object root, string filePath)
+        public static void SerializeInfo()
         {
             TCRWLockEnable = true;
             var fileSize = new FileInfo(InfoPath).Length;
@@ -688,14 +696,14 @@ namespace SysBot.Pokemon
             {
                 try
                 {
-                    var json = JsonConvert.SerializeObject(root, new JsonSerializerSettings
+                    var json = JsonConvert.SerializeObject(UserInfo, new JsonSerializerSettings
                     {
                         Formatting = Formatting.Indented,
                         DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate,
                         NullValueHandling = NullValueHandling.Ignore
                     });
 
-                    File.WriteAllText(filePath, json);
+                    File.WriteAllText(InfoPath, json);
                     if (TestJsonIntegrity())
                         break;
                 }

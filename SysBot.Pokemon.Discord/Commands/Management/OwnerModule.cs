@@ -70,7 +70,7 @@ namespace SysBot.Pokemon.Discord
         {
             await Context.Channel.EchoAndReply("Shutting down... goodbye! **Bot services are going offline.**").ConfigureAwait(false);
             if (TradeExtensions.TCInitialized)
-                TradeExtensions.SerializeInfo(TradeExtensions.UserInfo, "TradeCord\\UserInfo.json");
+                TradeExtensions.SerializeInfo();
             Environment.Exit(0);
         }
     }

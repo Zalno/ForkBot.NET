@@ -563,6 +563,14 @@ namespace SysBot.Pokemon.Discord
                 return;
             }
 
+            string[] cmd = input.Split(' ');
+            if (cmd.Length == 1 && cmd[0].ToLower() != "clear")
+            {
+                msg = "Incorrect command input.";
+                await Util.EmbedUtil(Context, name, msg).ConfigureAwait(false);
+                return;
+            }
+
             var ctx = new TradeExtensions.TC_CommandContext { Username = Context.User.Username, ID = Context.User.Id, Context = TCCommandContext.Perks };
             var result = TradeExtensions.ProcessTradeCord(ctx, new string[] { input }, input != "", Hub.Config.TradeCord);
             if (result.Success && result.User.DexCompletionCount >= 1)

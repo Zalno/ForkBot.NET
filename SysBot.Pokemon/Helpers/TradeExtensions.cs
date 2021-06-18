@@ -30,8 +30,6 @@ namespace SysBot.Pokemon
         public static int YCoordStart = 0;
 
         private static readonly int[] GalarFossils = { 880, 881, 882, 883 };
-        private static readonly int[] SilvallyMemory = { 0, 904, 905, 906, 907, 908, 909, 910, 911, 912, 913, 914, 915, 916, 917, 918, 919, 920 };
-        private static readonly int[] GenesectDrives = { 0, 116, 117, 118, 119 };
         public static readonly int[] Pokeball = { 151, 722, 723, 724, 725, 726, 727, 728, 729, 730, 772, 773, 789, 790, 810, 811, 812, 813, 814, 815, 816, 817, 818, 891, 892 };
         public static readonly int[] Amped = { 3, 4, 2, 8, 9, 19, 22, 11, 13, 14, 0, 6, 24 };
         public static readonly int[] LowKey = { 1, 5, 7, 10, 12, 15, 16, 17, 18, 20, 21, 23 };
@@ -145,7 +143,6 @@ namespace SysBot.Pokemon
 
         public static PK8 RngRoutine(PKM pkm, IBattleTemplate template, Shiny shiny)
         {
-            pkm.Form = pkm.Species == (int)Species.Silvally || pkm.Species == (int)Species.Genesect ? Random.Next(pkm.PersonalInfo.FormCount) : pkm.Form;
             if (pkm.Species == (int)Species.Alcremie)
             {
                 var data = pkm.Data;
@@ -153,27 +150,33 @@ namespace SysBot.Pokemon
                 BitConverter.GetBytes(deco).CopyTo(data, 0xE4);
                 pkm = PKMConverter.GetPKMfromBytes(data) ?? pkm;
             }
-            else if (pkm.Form > 0 && (pkm.Species == (int)Species.Silvally || pkm.Species == (int)Species.Genesect))
-            {
-                switch (pkm.Species)
-                {
-                    case 649: pkm.HeldItem = GenesectDrives[pkm.Form]; break;
-                    case 773: pkm.HeldItem = SilvallyMemory[pkm.Form]; break;
-                };
-            }
 
-            pkm.Nature = pkm.Species == (int)Species.Toxtricity && pkm.Form > 0 ? LowKey[Random.Next(LowKey.Length)] : pkm.Species == (int)Species.Toxtricity && pkm.Form == 0 ? Amped[Random.Next(Amped.Length)] : pkm.FatefulEncounter ? pkm.Nature : Random.Next(25);
+            var laInit = new LegalityAnalysis(pkm);
+            var nature = pkm.Nature;
+            pkm.Nature = pkm.Species switch
+            {
+                (int)Species.Toxtricity => pkm.Form > 0 ? LowKey[Random.Next(LowKey.Length)] : Amped[Random.Next(Amped.Length)],
+                _ => Random.Next(25),
+            };
+
+            var la = new LegalityAnalysis(pkm);
+            if (laInit.Valid && !la.Valid)
+                pkm.Nature = nature;
+
             pkm.StatNature = pkm.Nature;
             pkm.Move1_PPUps = pkm.Move2_PPUps = pkm.Move3_PPUps = pkm.Move4_PPUps = 0;
             pkm.SetMaximumPPCurrent(pkm.Moves);
             pkm.ClearHyperTraining();
 
-            var la = new LegalityAnalysis(pkm);
             var enc = la.Info.EncounterMatch;
             var evoChain = la.Info.EvoChainsAllGens[pkm.Format].FirstOrDefault(x => x.Species == pkm.Species);
             pkm.CurrentLevel = enc.LevelMin < evoChain.MinLevel ? evoChain.MinLevel : enc.LevelMin;
-            while (!new LegalityAnalysis(pkm).Valid && pkm.CurrentLevel <= 100)
+            while (!new LegalityAnalysis(pkm).Valid)
+            {
                 pkm.CurrentLevel += 1;
+                if (pkm.CurrentLevel == 100 && !new LegalityAnalysis(pkm).Valid)
+                    return (PK8)pkm;
+            }
 
             pkm.SetSuggestedMoves();
             pkm.SetRelearnMoves(pkm.GetSuggestedRelearnMoves(enc));
@@ -259,9 +262,10 @@ namespace SysBot.Pokemon
                     }
                 }
             }
-            else if (enc.Version != GameVersion.GO && !pkm.FatefulEncounter)
+            else if (enc.Version != GameVersion.GO && enc.Generation >= 6)
                 pkm.SetRandomIVs(4);
 
+            var test = BallApplicator.GetLegalBalls(pkm);
             BallApplicator.ApplyBallLegalRandom(pkm);
             if (pkm.Ball == 16)
                 BallApplicator.ApplyBallLegalRandom(pkm);
@@ -642,7 +646,7 @@ namespace SysBot.Pokemon
                     };
                     var result = Task.Run(() => task).Result;
 
-                    if (update)
+                    if (update && result.Success)
                     {
                         UpdateUserInfo(result.User);
                         if (ctx.Context == TCCommandContext.Gift)

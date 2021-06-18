@@ -141,7 +141,9 @@ namespace SysBot.Pokemon.Discord
                         return;
                     }
                 }
-
+            }
+            else if (result.FailedCatch)
+            {
                 var spookyRng = TradeExtensions.Random.Next(101);
                 var imgRng = TradeExtensions.Random.Next(1, 3);
                 string imgGarf = "https://i.imgur.com/BOb6IbW.png";
@@ -533,6 +535,12 @@ namespace SysBot.Pokemon.Discord
                 await Util.EmbedUtil(Context, name, msg).ConfigureAwait(false);
                 return;
             }
+            else if (input != "" && input != "missing")
+            {
+                msg = "Incorrect command input.";
+                await Util.EmbedUtil(Context, name, msg).ConfigureAwait(false);
+                return;
+            }
 
             var ctx = new TradeExtensions.TC_CommandContext { Username = Context.User.Username, ID = Context.User.Id, Context = TCCommandContext.Dex };
             var result = TradeExtensions.ProcessTradeCord(ctx, new string[] { input }, false, Hub.Config.TradeCord);
@@ -563,14 +571,6 @@ namespace SysBot.Pokemon.Discord
                 return;
             }
 
-            string[] cmd = input.Split(' ');
-            if (cmd.Length == 1 && cmd[0].ToLower() != "clear")
-            {
-                msg = "Incorrect command input.";
-                await Util.EmbedUtil(Context, name, msg).ConfigureAwait(false);
-                return;
-            }
-
             var ctx = new TradeExtensions.TC_CommandContext { Username = Context.User.Username, ID = Context.User.Id, Context = TCCommandContext.Perks };
             var result = TradeExtensions.ProcessTradeCord(ctx, new string[] { input }, input != "", Hub.Config.TradeCord);
             if (result.Success && result.User.DexCompletionCount >= 1)
@@ -594,11 +594,6 @@ namespace SysBot.Pokemon.Discord
 
             var ctx = new TradeExtensions.TC_CommandContext { Username = Context.User.Username, ID = Context.User.Id, Context = TCCommandContext.Boost };
             var result = TradeExtensions.ProcessTradeCord(ctx, new string[] { input }, true, Hub.Config.TradeCord);
-            if (!result.Success)
-            {
-                await Util.EmbedUtil(Context, name, result.Message).ConfigureAwait(false);
-                return;
-            }
             await Util.EmbedUtil(Context, name, result.Message).ConfigureAwait(false);
         }
 

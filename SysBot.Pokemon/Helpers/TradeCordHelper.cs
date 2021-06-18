@@ -9,12 +9,16 @@ namespace SysBot.Pokemon
     public class TradeCordHelper
     {
         private readonly TradeCordSettings Settings;
-        private string EventPokeType = string.Empty;
+        private int EventPokeForm = -1;
         private MysteryGift? MGRngEvent = default;
         private readonly TradeExtensions.TCRng Rng = TradeExtensions.RandomInit();
 
         private readonly string[] PartnerPikachuHeadache = { "-Original", "-Partner", "-Hoenn", "-Sinnoh", "-Unova", "-Alola", "-Kalos", "-World" };
         private readonly string[] LGPEBalls = { "Poke", "Premier", "Great", "Ultra", "Master" };
+        private static readonly string[] SilvallyMemory = { "", " @ Fighting Memory"," @ Flying Memory", " @ Poison Memory", " @ Ground Memory", " @ Rock Memory",
+            " @ Bug Memory", " @ Ghost Memory", " @ Steel Memory", " @ Fire Memory", " @ Water Memory", " @ Grass Memory", " @ Electric Memory", " @ Psychic Memory",
+            " @ Ice Memory", " @ Dragon Memory", " @ Dark Memory", " @ Fairy Memory" };
+        private static readonly string[] GenesectDrives = { "", " @ Douse Drive", " @ Shock Drive", " @ Burn Drive", " @ Chill Drive" };
         private readonly int[] PikaClones = { 25, 26, 172, 587, 702, 777, 877 };
         private readonly int[] CherishOnly = { 719, 721, 801, 802, 807, 893 };
         private readonly int[] TradeEvo = { (int)Species.Machoke, (int)Species.Haunter, (int)Species.Boldore, (int)Species.Gurdurr, (int)Species.Phantump, (int)Species.Gourgeist };
@@ -32,6 +36,7 @@ namespace SysBot.Pokemon
             public string EmbedName { get; set; } = string.Empty;
             public string Message { get; set; } = string.Empty;
             public bool Success { get; set; }
+            public bool FailedCatch { get; set; }
             public PK8 Poke { get; set; } = new();
             public int PokeID { get; set; } = new();
             public PK8 EggPoke { get; set; } = new();
@@ -46,20 +51,10 @@ namespace SysBot.Pokemon
         {
             Results result = new();
             string eggMsg = string.Empty;
-            bool invalidEgg = false;
 
             bool FuncCatch()
             {
-                DateTime.TryParse(Settings.EventEnd, out DateTime endTime);
-                bool ended = endTime != default && DateTime.Now > endTime;
                 user = PerkBoostApplicator(user);
-                bool boostProc = user.SpeciesBoost != 0 && Rng.SpeciesBoostRNG >= 100 - user.ActivePerks.FindAll(x => x == DexPerks.SpeciesBoost).Count;
-
-                if (Settings.EnableEvent && !ended)
-                    EventHandler();
-                else if (boostProc)
-                    Rng.SpeciesRNG = user.SpeciesBoost;
-
                 List<string> trainerInfo = new();
                 trainerInfo.AddRange(new string[]
                 {
@@ -69,6 +64,29 @@ namespace SysBot.Pokemon
                     user.SID == 0 ? "" : $"SID: {user.SID}",
                     user.Language == "" ? "" : $"Language: {user.Language}"
                 });
+
+                bool egg = CanGenerateEgg(user, out int evo1, out int evo2) && Rng.EggRNG >= 100 - Settings.EggRate;
+                if (egg)
+                {
+                    result.EggPoke = EggProcess(user, string.Join("\n", trainerInfo), evo1, evo2, out eggMsg);
+                    if (!(result.EggPoke is PK8) || !new LegalityAnalysis(result.EggPoke).Valid)
+                        return false;
+                    else
+                    {
+                        result.EggPoke.ResetPartyStats();
+                        if (user.DexCompletionCount < 30)
+                            eggMsg += DexCount(user, result.EggPoke.Species, false);
+                    }
+                }
+
+                DateTime.TryParse(Settings.EventEnd, out DateTime endTime);
+                bool ended = endTime != default && DateTime.Now > endTime;
+                bool boostProc = user.SpeciesBoost != 0 && Rng.SpeciesBoostRNG >= 100 - user.ActivePerks.FindAll(x => x == DexPerks.SpeciesBoost).Count;
+
+                if (Settings.EnableEvent && !ended)
+                    EventHandler();
+                else if (boostProc)
+                    Rng.SpeciesRNG = user.SpeciesBoost;
 
                 if (Rng.CatchRNG >= 100 - Settings.CatchRate)
                 {
@@ -98,42 +116,29 @@ namespace SysBot.Pokemon
                         result.Message += DexCount(user, result.Poke.Species, false);
                 }
 
-                bool egg = CanGenerateEgg(user, out int evo1, out int evo2) && Rng.EggRNG >= 100 - Settings.EggRate;
-                if (egg)
-                {
-                    result.EggPoke = EggProcess(user, string.Join("\n", trainerInfo), evo1, evo2, out string eggMsg);
-                    if (!(result.EggPoke is PK8) || !new LegalityAnalysis(result.EggPoke).Valid)
-                    {
-                        invalidEgg = true;
-                        return false;
-                    }
-                    else
-                    {
-                        result.EggPoke.ResetPartyStats();
-                        if (user.DexCompletionCount < 30)
-                            eggMsg += DexCount(user, result.EggPoke.Species, false);
-                        result.Message += eggMsg;
-                    }
-                }
-
                 if (Rng.CatchRNG < 100 - Settings.CatchRate)
-                    return false;
-                else return true;
+                    result.FailedCatch = true;
+
+                return true;
             }
 
             result.Success = FuncCatch();
-            if (result.Success && result.Poke.Species != 0)
+            if (result.Success)
             {
-                user.CatchCount++;
-                user = TradeCordDump(user, $"{user.UserID}", result.Poke, out int index);
-                result.PokeID = index;
-            }
+                if (result.Poke.Species != 0)
+                {
+                    user.CatchCount++;
+                    user = TradeCordDump(user, $"{user.UserID}", result.Poke, out int index);
+                    result.PokeID = index;
+                }
 
-            if (result.EggPoke.Species != 0 && !invalidEgg)
-            {
-                user.CatchCount++;
-                user = TradeCordDump(user, $"{user.UserID}", result.EggPoke, out int eggIndex);
-                result.EggPokeID = eggIndex;
+                if (result.EggPoke.Species != 0)
+                {
+                    user.CatchCount++;
+                    user = TradeCordDump(user, $"{user.UserID}", result.EggPoke, out int eggIndex);
+                    result.EggPokeID = eggIndex;
+                    result.Message += eggMsg;
+                }
             }
 
             result.User = user;
@@ -914,23 +919,26 @@ namespace SysBot.Pokemon
             string formHack = string.Empty;
             var formEdgeCaseRng = TradeExtensions.Random.Next(11);
             string[] poipoleRng = { "Poke", "Beast" };
-            string[] mewOverride = { ".Version=34", ".Version=3" };
-            int[] ignoreForm = { 382, 383, 646, 649, 716, 717, 773, 778, 800, 845, 875, 877, 888, 889, 890, 898 };
+            string[] mewOverride = { "\n.Version=34", "\n.Version=3" };
+            string[] mewEmeraldBalls = { "Poke", "Great", "Ultra", "Dive", "Luxury", "Master", "Nest", "Net", "Premier", "Repeat", "Timer" };
+            int[] ignoreForm = { 382, 383, 646, 716, 717, 778, 800, 845, 875, 877, 888, 889, 890, 898 };
             Shiny shiny = Rng.ShinyRNG >= 100 - Settings.SquareShinyRate ? Shiny.AlwaysSquare : Rng.ShinyRNG >= 100 - Settings.StarShinyRate ? Shiny.AlwaysStar : Shiny.Never;
             string shinyType = shiny == Shiny.AlwaysSquare ? "\nShiny: Square" : shiny == Shiny.AlwaysStar ? "\nShiny: Star" : "";
+
             string gameVer = Rng.SpeciesRNG switch
             {
-                (int)Species.Exeggutor or (int)Species.Marowak => _ = "\n.Version=33",
-                (int)Species.Mew => _ = shinyType != "" ? $"\n{mewOverride[TradeExtensions.Random.Next(2)]}" : "",
+                (int)Species.Exeggutor or (int)Species.Marowak => _ = ".Version=33",
+                (int)Species.Mew => _ = shiny != Shiny.Never ? $"{mewOverride[TradeExtensions.Random.Next(2)]}" : "",
                 _ => "",
             };
 
             if (Rng.SpeciesRNG == (int)Species.NidoranF || Rng.SpeciesRNG == (int)Species.NidoranM)
                 speciesName = speciesName.Remove(speciesName.Length - 1);
 
+            TradeExtensions.FormOutput(Rng.SpeciesRNG, 0, out string[] forms);
+            var formRng = TradeExtensions.Random.Next(Rng.SpeciesRNG == (int)Species.Zygarde ? forms.Length - 1 : forms.Length);
             if (!ignoreForm.Contains(Rng.SpeciesRNG))
             {
-                TradeExtensions.FormOutput(Rng.SpeciesRNG, 0, out string[] forms);
                 formHack = Rng.SpeciesRNG switch
                 {
                     (int)Species.Meowstic or (int)Species.Indeedee => _ = formEdgeCaseRng < 5 ? "-M" : "-F",
@@ -939,10 +947,21 @@ namespace SysBot.Pokemon
                     (int)Species.Pikachu => _ = formEdgeCaseRng < 5 ? "" : PartnerPikachuHeadache[TradeExtensions.Random.Next(PartnerPikachuHeadache.Length)],
                     (int)Species.Dracovish or (int)Species.Dracozolt => _ = formEdgeCaseRng < 5 ? "" : "\nAbility: Sand Rush",
                     (int)Species.Arctovish or (int)Species.Arctozolt => _ = formEdgeCaseRng < 5 ? "" : "\nAbility: Slush Rush",
-                    (int)Species.Zygarde => "-" + forms[TradeExtensions.Random.Next(forms.Length - 1)],
                     (int)Species.Giratina => _ = formEdgeCaseRng < 5 ? "" : "-Origin @ Griseous Orb",
                     (int)Species.Keldeo => "-Resolute",
-                    _ => EventPokeType == "" ? "-" + forms[TradeExtensions.Random.Next(forms.Length)] : EventPokeType == "Base" ? "" : "-" + forms[int.Parse(EventPokeType)],
+                    _ => EventPokeForm == -1 ? forms[formRng] : forms[EventPokeForm],
+                };
+
+                if (formHack != "")
+                    formHack = $"-{formHack}";
+            }
+
+            if (formHack != "" && (Rng.SpeciesRNG == (int)Species.Silvally || Rng.SpeciesRNG == (int)Species.Genesect))
+            {
+                switch (Rng.SpeciesRNG)
+                {
+                    case 649: formHack += GenesectDrives[EventPokeForm != -1 ? EventPokeForm : formRng]; break;
+                    case 773: formHack += SilvallyMemory[EventPokeForm != -1 ? EventPokeForm : formRng]; break;
                 };
             }
 
@@ -953,11 +972,12 @@ namespace SysBot.Pokemon
                 (int)Species.Meltan or (int)Species.Melmetal => $"\nBall: {LGPEBalls[TradeExtensions.Random.Next(LGPEBalls.Length)]}",
                 (int)Species.Dracovish or (int)Species.Dracozolt or (int)Species.Arctovish or (int)Species.Arctozolt => _ = formEdgeCaseRng < 5 ? $"\nBall: Poke" : $"\nBall: {(Ball)TradeExtensions.Random.Next(1, 26)}",
                 (int)Species.Treecko or (int)Species.Torchic or (int)Species.Mudkip => $"\nBall: {(Ball)TradeExtensions.Random.Next(2, 27)}",
-                (int)Species.Pikachu or (int)Species.Victini or (int)Species.Celebi or (int)Species.Jirachi or (int)Species.Genesect => "\nBall: Poke",
+                (int)Species.Pikachu or (int)Species.Victini or (int)Species.Celebi or (int)Species.Jirachi or (int)Species.Genesect or (int)Species.Silvally => "\nBall: Poke",
+                (int)Species.Mew => gameVer == mewOverride[1] ? $"\nBall: {mewEmeraldBalls[TradeExtensions.Random.Next(mewEmeraldBalls.Length)]}" : "\nBall: Poke",
                 _ => TradeExtensions.Pokeball.Contains(Rng.SpeciesRNG) ? "\nBall: Poke" : $"\nBall: {(Ball)TradeExtensions.Random.Next(1, 27)}",
             };
-
             ballRng = ballRng.Contains("Cherish") ? ballRng.Replace("Cherish", "Poke") : ballRng;
+
             if (ShinyLockCheck(Rng.SpeciesRNG, ballRng, formHack != "") || hatchu)
             {
                 shinyType = "";
@@ -970,15 +990,20 @@ namespace SysBot.Pokemon
 
             var template = AutoLegalityWrapper.GetTemplate(set);
             var sav = AutoLegalityWrapper.GetTrainerInfo(8);
-            var pk = (PK8)sav.GetLegal(template, out _);
-            return TradeExtensions.RngRoutine(pk, template, shiny);
+            var pk = (PK8)sav.GetLegal(template, out string result);
+
+            if (pk.FatefulEncounter || result != "Regenerated")
+                return pk;
+            else return TradeExtensions.RngRoutine(pk, template, shiny);
         }
 
         private void EventHandler()
         {
             string type = string.Empty;
             var enumVals = (int[])Enum.GetValues(typeof(Gen8Dex));
+            var eventType = $"{Settings.PokeEventType}";
             bool match;
+
             do
             {
                 if (Settings.PokeEventType == PokeEventType.EventPoke)
@@ -990,9 +1015,9 @@ namespace SysBot.Pokemon
                     for (int i = 0; i < temp.PersonalInfo.FormCount; i++)
                     {
                         temp.Form = i;
-                        type = GameInfo.Strings.Types[temp.PersonalInfo.Type1] == Settings.PokeEventType.ToString() ? GameInfo.Strings.Types[temp.PersonalInfo.Type1] : GameInfo.Strings.Types[temp.PersonalInfo.Type2] == Settings.PokeEventType.ToString() ? GameInfo.Strings.Types[temp.PersonalInfo.Type2] : "";
-                        EventPokeType = type != "" ? $"{temp.Form}" : "";
-                        if (EventPokeType != "")
+                        type = GameInfo.Strings.Types[temp.PersonalInfo.Type1] == eventType ? GameInfo.Strings.Types[temp.PersonalInfo.Type1] : GameInfo.Strings.Types[temp.PersonalInfo.Type2] == eventType ? GameInfo.Strings.Types[temp.PersonalInfo.Type2] : "";
+                        EventPokeForm = type != "" ? temp.Form : -1;
+                        if (EventPokeForm != -1)
                             break;
                     }
                 }
@@ -1002,7 +1027,7 @@ namespace SysBot.Pokemon
                     PokeEventType.Legends => Enum.IsDefined(typeof(Legends), Rng.SpeciesRNG),
                     PokeEventType.PikaClones => PikaClones.Contains(Rng.SpeciesRNG),
                     PokeEventType.EventPoke => MGRngEvent != default,
-                    _ => type == Settings.PokeEventType.ToString(),
+                    _ => type == eventType,
                 };
                 if (!match)
                     Rng.SpeciesRNG = enumVals[TradeExtensions.Random.Next(enumVals.Length)];

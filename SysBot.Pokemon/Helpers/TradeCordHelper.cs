@@ -967,6 +967,9 @@ namespace SysBot.Pokemon
                 _ => "",
             };
 
+            if (Rng.SpeciesRNG == (int)Species.Mew && gameVer == mewOverride[1] && trainerInfo[4] != "")
+                trainerInfo[4] = "";
+
             bool hatchu = Rng.SpeciesRNG == 25 && formHack != "" && formHack != "-Partner";
             string ballRng = Rng.SpeciesRNG switch
             {

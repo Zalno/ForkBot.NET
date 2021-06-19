@@ -450,11 +450,12 @@ namespace SysBot.Pokemon
         {
             var strings = GameInfo.GetStrings(LanguageID.English.GetLanguage2CharName());
             formString = FormConverter.GetFormList(species, strings.Types, strings.forms, GameInfo.GenderSymbolASCII, 8);
-            _ = formString.Length == form && form != 0 ? form -= 1 : form;
+            formString[0] = "";
 
-            if (form == 0)
-                return "";
-            else return $"-{formString[form]}";
+            if (form > formString.Length)
+                form = formString.Length;
+
+            return formString[form].Contains("-") ? formString[form] : formString[form] == "" ? "" : $"-{formString[form]}";
         }
 
         private static int DittoSlot(int species1, int species2)

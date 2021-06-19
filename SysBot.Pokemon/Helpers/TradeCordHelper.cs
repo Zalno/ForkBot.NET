@@ -925,35 +925,28 @@ namespace SysBot.Pokemon
             Shiny shiny = Rng.ShinyRNG >= 100 - Settings.SquareShinyRate ? Shiny.AlwaysSquare : Rng.ShinyRNG >= 100 - Settings.StarShinyRate ? Shiny.AlwaysStar : Shiny.Never;
             string shinyType = shiny == Shiny.AlwaysSquare ? "\nShiny: Square" : shiny == Shiny.AlwaysStar ? "\nShiny: Star" : "";
 
-            string gameVer = Rng.SpeciesRNG switch
-            {
-                (int)Species.Exeggutor or (int)Species.Marowak => _ = ".Version=33",
-                (int)Species.Mew => _ = shiny != Shiny.Never ? $"{mewOverride[TradeExtensions.Random.Next(2)]}" : "",
-                _ => "",
-            };
-
             if (Rng.SpeciesRNG == (int)Species.NidoranF || Rng.SpeciesRNG == (int)Species.NidoranM)
                 speciesName = speciesName.Remove(speciesName.Length - 1);
 
             TradeExtensions.FormOutput(Rng.SpeciesRNG, 0, out string[] forms);
             var formRng = TradeExtensions.Random.Next(Rng.SpeciesRNG == (int)Species.Zygarde ? forms.Length - 1 : forms.Length);
+
             if (!ignoreForm.Contains(Rng.SpeciesRNG))
             {
                 formHack = Rng.SpeciesRNG switch
                 {
-                    (int)Species.Meowstic or (int)Species.Indeedee => _ = formEdgeCaseRng < 5 ? "-M" : "-F",
-                    (int)Species.NidoranF or (int)Species.NidoranM => _ = Rng.SpeciesRNG == (int)Species.NidoranF ? "-F (F)" : "-M (M)",
-                    (int)Species.Sinistea or (int)Species.Polteageist => _ = formEdgeCaseRng < 5 ? "" : "-Antique",
+                    (int)Species.Meowstic or (int)Species.Indeedee => formEdgeCaseRng < 5 ? "-M" : "-F",
+                    (int)Species.NidoranF or (int)Species.NidoranM => Rng.SpeciesRNG == (int)Species.NidoranF ? "-F (F)" : "-M (M)",
+                    (int)Species.Sinistea or (int)Species.Polteageist => formEdgeCaseRng < 5 ? "" : "-Antique",
                     (int)Species.Pikachu => _ = formEdgeCaseRng < 5 ? "" : PartnerPikachuHeadache[TradeExtensions.Random.Next(PartnerPikachuHeadache.Length)],
-                    (int)Species.Dracovish or (int)Species.Dracozolt => _ = formEdgeCaseRng < 5 ? "" : "\nAbility: Sand Rush",
-                    (int)Species.Arctovish or (int)Species.Arctozolt => _ = formEdgeCaseRng < 5 ? "" : "\nAbility: Slush Rush",
-                    (int)Species.Giratina => _ = formEdgeCaseRng < 5 ? "" : "-Origin @ Griseous Orb",
+                    (int)Species.Dracovish or (int)Species.Dracozolt => formEdgeCaseRng < 5 ? "" : "\nAbility: Sand Rush",
+                    (int)Species.Arctovish or (int)Species.Arctozolt => formEdgeCaseRng < 5 ? "" : "\nAbility: Slush Rush",
+                    (int)Species.Giratina => formEdgeCaseRng < 5 ? "" : "-Origin @ Griseous Orb",
                     (int)Species.Keldeo => "-Resolute",
-                    _ => EventPokeForm == -1 ? forms[formRng] : forms[EventPokeForm],
+                    _ => EventPokeForm == -1 ? $"-{forms[formRng]}" : $"-{forms[EventPokeForm]}",
                 };
 
-                if (formHack != "")
-                    formHack = $"-{formHack}";
+                formHack = formHack == "-" ? "" : formHack;
             }
 
             if (formHack != "" && (Rng.SpeciesRNG == (int)Species.Silvally || Rng.SpeciesRNG == (int)Species.Genesect))
@@ -965,6 +958,15 @@ namespace SysBot.Pokemon
                 };
             }
 
+            bool birbs = ShinyLockCheck(Rng.SpeciesRNG, "", formHack != "");
+            string gameVer = Rng.SpeciesRNG switch
+            {
+                (int)Species.Exeggutor or (int)Species.Marowak => "\n.Version=33",
+                (int)Species.Mew => shiny != Shiny.Never ? $"{mewOverride[TradeExtensions.Random.Next(2)]}" : "",
+                (int)Species.Articuno or (int)Species.Zapdos or (int)Species.Moltres => shiny == Shiny.AlwaysSquare && !birbs ? "\n.Version=33" : "",
+                _ => "",
+            };
+
             bool hatchu = Rng.SpeciesRNG == 25 && formHack != "" && formHack != "-Partner";
             string ballRng = Rng.SpeciesRNG switch
             {
@@ -974,9 +976,11 @@ namespace SysBot.Pokemon
                 (int)Species.Treecko or (int)Species.Torchic or (int)Species.Mudkip => $"\nBall: {(Ball)TradeExtensions.Random.Next(2, 27)}",
                 (int)Species.Pikachu or (int)Species.Victini or (int)Species.Celebi or (int)Species.Jirachi or (int)Species.Genesect or (int)Species.Silvally => "\nBall: Poke",
                 (int)Species.Mew => gameVer == mewOverride[1] ? $"\nBall: {mewEmeraldBalls[TradeExtensions.Random.Next(mewEmeraldBalls.Length)]}" : "\nBall: Poke",
-                _ => TradeExtensions.Pokeball.Contains(Rng.SpeciesRNG) ? "\nBall: Poke" : $"\nBall: {(Ball)TradeExtensions.Random.Next(1, 27)}",
+                _ => TradeExtensions.Pokeball.Contains(Rng.SpeciesRNG) || gameVer == "\n.Version=33" ? "\nBall: Poke" : $"\nBall: {(Ball)TradeExtensions.Random.Next(1, 27)}",
             };
-            ballRng = ballRng.Contains("Cherish") ? ballRng.Replace("Cherish", "Poke") : ballRng;
+
+            if (ballRng.Contains("Cherish"))
+                ballRng = ballRng.Replace("Cherish", "Poke");
 
             if (ShinyLockCheck(Rng.SpeciesRNG, ballRng, formHack != "") || hatchu)
             {
@@ -1014,6 +1018,10 @@ namespace SysBot.Pokemon
                     var temp = TradeCordPK(Rng.SpeciesRNG);
                     for (int i = 0; i < temp.PersonalInfo.FormCount; i++)
                     {
+                        var isPresent = PersonalTable.SWSH.GetFormEntry(temp.Species, i).IsFormWithinRange(i);
+                        if (!isPresent)
+                            continue;
+
                         temp.Form = i;
                         type = GameInfo.Strings.Types[temp.PersonalInfo.Type1] == eventType ? GameInfo.Strings.Types[temp.PersonalInfo.Type1] : GameInfo.Strings.Types[temp.PersonalInfo.Type2] == eventType ? GameInfo.Strings.Types[temp.PersonalInfo.Type2] : "";
                         EventPokeForm = type != "" ? temp.Form : -1;

@@ -135,15 +135,12 @@ namespace SysBot.Pokemon.Discord
             {
                 if (LairBotUtil.EmbedMon.Item1 != null)
                 {
-                    var url = TradeExtensions.PokeImg(LairBotUtil.EmbedMon.Item1, LairBotUtil.EmbedMon.Item1.CanGigantamax, SysCordInstance.Self.Hub.Config.TradeCord.UseFullSizeImages);
-                    var ballUrl = $"https://serebii.net/itemdex/sprites/pgl/" + $"{(Ball)LairBotUtil.EmbedMon.Item1.Ball}ball".ToLower() + ".png";
+                    var url = TradeExtensions.PokeImg(LairBotUtil.EmbedMon.Item1, LairBotUtil.EmbedMon.Item1.CanGigantamax, false);
+                    var ballStr = $"{(Ball)LairBotUtil.EmbedMon.Item1.Ball}".ToLower();
+                    var ballUrl = $"https://serebii.net/itemdex/sprites/pgl/{ballStr}ball.png";
                     var ping = SysCordInstance.Self.Hub.Config.StopConditions.PingOnMatch != string.Empty ? $"<@{SysCordInstance.Self.Hub.Config.StopConditions.PingOnMatch}>" : "";
-                    var embed = new EmbedBuilder { Color = Color.Blue, ImageUrl = url, ThumbnailUrl = ballUrl }.AddField(x =>
-                    {
-                        x.Name = LairBotUtil.EmbedMon.Item2 ? "Legendary Caught!" : "Result found, but not quite Legendary!";
-                        x.Value = ShowdownParsing.GetShowdownText(LairBotUtil.EmbedMon.Item1);
-                        x.IsInline = false;
-                    });
+                    var author = new EmbedAuthorBuilder { IconUrl = ballUrl, Name = LairBotUtil.EmbedMon.Item2 ? "Legendary Caught!" : "Result found, but not quite Legendary!" };
+                    var embed = new EmbedBuilder { Color = Color.Blue, ThumbnailUrl = url }.WithAuthor(author).WithDescription(ShowdownParsing.GetShowdownText(LairBotUtil.EmbedMon.Item1));
 
                     if (ulong.TryParse(SysCordInstance.Self.Hub.Config.StopConditions.PingOnMatch, out ulong usr))
                     {

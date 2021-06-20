@@ -1211,5 +1211,7 @@
         Daycare,
         FavoritesInfo,
         Favorites,
+        Buddy,
+        Nickname,
     }
 }

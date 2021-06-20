@@ -597,6 +597,87 @@ namespace SysBot.Pokemon.Discord
             await Util.EmbedUtil(Context, name, result.Message).ConfigureAwait(false);
         }
 
+        [Command("TradeCordBuddy")]
+        [Alias("buddy")]
+        [Summary("View buddy or set a specified Pokémon as one.")]
+        [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
+        public async Task TradeCordBuddy([Remainder] string input = "")
+        {
+            string name = $"{Context.User.Username}'s Buddy";
+            if (!TradeCordParanoiaChecks(out string msg))
+            {
+                await Util.EmbedUtil(Context, name, msg).ConfigureAwait(false);
+                return;
+            }
+
+            var ctx = new TradeExtensions.TC_CommandContext { Username = Context.User.Username, ID = Context.User.Id, Context = TCCommandContext.Buddy };
+            var result = TradeExtensions.ProcessTradeCord(ctx, new string[] { input }, input != "", Hub.Config.TradeCord);
+            if (!result.Success)
+            {
+                await Util.EmbedUtil(Context, name, result.Message).ConfigureAwait(false);
+                return;
+            }
+            else if (result.Success && input != string.Empty)
+            {
+                await Util.EmbedUtil(Context, name, result.Message).ConfigureAwait(false);
+                return;
+            }
+
+            string footerMsg = string.Empty;
+            if (!result.Poke.IsEgg)
+                footerMsg = $"\n\n{TradeExtensions.DexFlavor(result.Poke.Species)}";
+            else
+            {
+                double status = result.User.Buddy.HatchSteps / (double)result.Poke.PersonalInfo.HatchCycles;
+                if (status is >= 0 and <= 0.25)
+                    footerMsg = "It looks as though this Egg will take a long time yet to hatch.";
+                else if (status is > 0.25 and <= 0.5)
+                    footerMsg = "What Pokémon will hatch from this Egg? It doesn't seem close to hatching.";
+                else if (status is > 0.5 and <= 0.75)
+                    footerMsg = "It appears to move occasionally. It may be close to hatching.";
+                else footerMsg = "Sounds can be heard coming from inside! This Egg will hatch soon!";
+            }
+
+            bool canGmax = new ShowdownSet(ShowdownParsing.GetShowdownText(result.Poke)).CanGigantamax;
+            var pokeImg = TradeExtensions.PokeImg(result.Poke, canGmax, Hub.Config.TradeCord.UseFullSizeImages);
+            var embed = new EmbedBuilder { Color = result.Poke.IsShiny ? Color.Blue : Color.DarkBlue, ThumbnailUrl = pokeImg }.WithFooter(x => { x.Text = footerMsg; x.IconUrl = "https://i.imgur.com/nXNBrlr.png"; });
+            var form = TradeExtensions.FormOutput(result.Poke.Species, result.Poke.Form, out _).Replace("-", "");
+            msg = $"\nNickname: {result.User.Buddy.Nickname}" +
+                  $"\nSpecies: {SpeciesName.GetSpeciesNameGeneration(result.Poke.Species, 2, 8)}" +
+                  $"\nForm: {(form == string.Empty ? "Base" : form)}" +
+                  $"\nAbility: {result.User.Buddy.Ability}" +
+                  $"\nLevel: {result.Poke.CurrentLevel}";
+            await Util.EmbedUtil(Context, result.EmbedName, msg, embed).ConfigureAwait(false);
+        }
+
+        [Command("TradeCordNickname")]
+        [Alias("nickname", "nick")]
+        [Summary("Sets a nickname for the active buddy.")]
+        [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
+        public async Task TradeCordNickname([Remainder] string input)
+        {
+            string name = $"{Context.User.Username}'s Buddy Nickname";
+            if (!TradeCordParanoiaChecks(out string msg))
+            {
+                await Util.EmbedUtil(Context, name, msg).ConfigureAwait(false);
+                return;
+            }
+
+            for (int i = 0; i < input.Length; i++)
+            {
+                if (!char.IsLetterOrDigit(input, i) && !char.IsWhiteSpace(input, i))
+                {
+                    msg = "Emotes cannot be used in a nickname";
+                    await Util.EmbedUtil(Context, name, msg).ConfigureAwait(false);
+                    return;
+                }
+            }
+
+            var ctx = new TradeExtensions.TC_CommandContext { Username = Context.User.Username, ID = Context.User.Id, Context = TCCommandContext.Nickname };
+            var result = TradeExtensions.ProcessTradeCord(ctx, new string[] { input }, true, Hub.Config.TradeCord);
+            await Util.EmbedUtil(Context, name, result.Message).ConfigureAwait(false);
+        }
+
         [Command("TradeCordMuteClear")]
         [Alias("mc")]
         [Summary("Remove the mentioned user from the mute list.")]

@@ -74,19 +74,20 @@ namespace SysBot.Pokemon
                 public string Username { get; set; } = string.Empty;
                 public ulong UserID { get; set; }
                 public int CatchCount { get; set; }
-                public Daycare1 Daycare1 { get; set; } = new();
-                public Daycare2 Daycare2 { get; set; } = new();
+                public int SpeciesBoost { get; set; }
+                public int DexCompletionCount { get; set; }
+                public HashSet<int> Dex { get; set; } = new();
+                public List<DexPerks> ActivePerks { get; set; } = new();
+                public HashSet<int> Favorites { get; set; } = new();
                 public string OTName { get; set; } = "";
                 public string OTGender { get; set; } = "";
                 public int TID { get; set; }
                 public int SID { get; set; }
                 public string Language { get; set; } = "";
-                public HashSet<int> Dex { get; set; } = new();
-                public int DexCompletionCount { get; set; }
-                public List<DexPerks> ActivePerks { get; set; } = new();
-                public int SpeciesBoost { get; set; }
-                public HashSet<int> Favorites { get; set; } = new();
+                public Daycare1 Daycare1 { get; set; } = new();
+                public Daycare2 Daycare2 { get; set; } = new();
                 public HashSet<Catch> Catches { get; set; } = new();
+                public Buddy Buddy { get; set; } = new();
             }
 
             public class Catch
@@ -117,6 +118,14 @@ namespace SysBot.Pokemon
                 public int Species { get; set; }
                 public string Form { get; set; } = "";
                 public int Ball { get; set; }
+            }
+
+            public class Buddy
+            {
+                public int ID { get; set; }
+                public Ability Ability { get; set; }
+                public int HatchSteps { get; set; }
+                public string Nickname { get; set; } = "";
             }
         }
 
@@ -324,6 +333,7 @@ namespace SysBot.Pokemon
                 pkm.Ball = info.Daycare2.Ball;
 
             EggTrade((PK8)pkm);
+            pkm.CurrentFriendship = pkm.PersonalInfo.HatchCycles;
             pkm.SetAbilityIndex(Random.Next(3));
             pkm.Nature = Random.Next(25);
             pkm.StatNature = pkm.Nature;
@@ -643,6 +653,8 @@ namespace SysBot.Pokemon
                         TCCommandContext.Dex => helper.DexHandler(user, input[0]),
                         TCCommandContext.Perks => helper.PerkHandler(user, input[0]),
                         TCCommandContext.Boost => helper.SpeciesBoostHandler(user, input[0]),
+                        TCCommandContext.Buddy => helper.BuddyHandler(user, input[0]),
+                        TCCommandContext.Nickname => helper.NicknameHandler(user, input[0]),
                         _ => throw new NotImplementedException(),
                     };
                     var result = Task.Run(() => task).Result;

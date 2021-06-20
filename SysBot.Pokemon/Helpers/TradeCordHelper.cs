@@ -26,6 +26,9 @@ namespace SysBot.Pokemon
                                              (int)Species.Marshadow, (int)Species.Zacian, (int)Species.Zamazenta, (int)Species.Eternatus, (int)Species.Kubfu, (int)Species.Urshifu,
                                              (int)Species.Zarude, (int)Species.Glastrier, (int)Species.Spectrier, (int)Species.Calyrex };
 
+        private readonly int[] UMWormhole = { 144, 145, 146, 150, 244, 245, 249, 380, 382, 384, 480, 481, 482, 484, 487, 488, 644, 645, 646, 642, 717, 793, 795, 796, 797, 799 };
+        private readonly int[] USWormhole = { 144, 145, 146, 150, 245, 250, 381, 383, 384, 480, 481, 482, 487, 488, 645, 646, 793, 794, 796, 799, 483, 485, 641, 643, 716, 798 };
+
         public TradeCordHelper(TradeCordSettings settings)
         {
             Settings = settings;
@@ -51,6 +54,7 @@ namespace SysBot.Pokemon
         {
             Results result = new();
             string eggMsg = string.Empty;
+            string buddyMsg = string.Empty;
 
             bool FuncCatch()
             {
@@ -139,10 +143,14 @@ namespace SysBot.Pokemon
                     result.EggPokeID = eggIndex;
                     result.Message += eggMsg;
                 }
+
+                user = BuddySystem(user, out buddyMsg);
+                result.Message += buddyMsg;
             }
 
             result.User = user;
             result.EmbedName += $"Results{(result.EggPoke.Species != 0 ? "&^&\nEggs" : "")}";
+            result.EmbedName += buddyMsg != string.Empty ? "&^&\nHatch" : "";
             return result;
         }
 
@@ -152,20 +160,20 @@ namespace SysBot.Pokemon
 
             bool FuncTrade()
             {
-                if (!int.TryParse(input, out int _id))
+                if (!int.TryParse(input, out int id))
                 {
                     result.Message = "Please enter a numerical catch ID.";
                     return false;
                 }
 
-                var match = user.Catches.FirstOrDefault(x => x.ID == _id && !x.Traded);
+                var match = user.Catches.FirstOrDefault(x => x.ID == id && !x.Traded);
                 if (match == null)
                 {
                     result.Message = "There is no Pokémon with this ID.";
                     return false;
                 }
 
-                var dcfavCheck = user.Daycare1.ID == _id || user.Daycare2.ID == _id || user.Favorites.FirstOrDefault(x => x == _id) != default;
+                var dcfavCheck = user.Daycare1.ID == id || user.Daycare2.ID == id || user.Favorites.FirstOrDefault(x => x == id) != default || user.Buddy.ID == id;
                 if (dcfavCheck)
                 {
                     result.Message = "Please remove your Pokémon from favorites and daycare before trading!";
@@ -312,19 +320,19 @@ namespace SysBot.Pokemon
                 bool ballRelease = Enum.TryParse(ballStr, out Ball ball);
 
                 if (ballRelease && ball != Ball.None)
-                    matches = list.FindAll(x => !x.Traded && !x.Shiny && x.Ball == ball.ToString() && x.Species != "Ditto" && x.ID != user.Daycare1.ID && x.ID != user.Daycare2.ID && user.Favorites.FirstOrDefault(z => z == x.ID) == default);
+                    matches = list.FindAll(x => !x.Traded && !x.Shiny && x.Ball == ball.ToString() && x.Species != "Ditto" && x.ID != user.Daycare1.ID && x.ID != user.Daycare2.ID && user.Favorites.FirstOrDefault(z => z == x.ID) == default && x.ID != user.Buddy.ID);
                 else if (input.ToLower() == "shiny")
-                    matches = list.FindAll(x => !x.Traded && x.Shiny && x.Ball != "Cherish" && x.Species != "Ditto" && x.ID != user.Daycare1.ID && x.ID != user.Daycare2.ID && user.Favorites.FirstOrDefault(z => z == x.ID) == default);
+                    matches = list.FindAll(x => !x.Traded && x.Shiny && x.Ball != "Cherish" && x.Species != "Ditto" && x.ID != user.Daycare1.ID && x.ID != user.Daycare2.ID && user.Favorites.FirstOrDefault(z => z == x.ID) == default && x.ID != user.Buddy.ID);
                 else if (input != "")
                 {
                     input = ListNameSanitize(input);
-                    matches = list.FindAll(x => !x.Traded && !x.Shiny && x.Ball != "Cherish" && $"{x.Species}{x.Form}".Equals(input) && x.ID != user.Daycare1.ID && x.ID != user.Daycare2.ID && user.Favorites.FirstOrDefault(z => z == x.ID) == default);
+                    matches = list.FindAll(x => !x.Traded && !x.Shiny && x.Ball != "Cherish" && $"{x.Species}{x.Form}".Equals(input) && x.ID != user.Daycare1.ID && x.ID != user.Daycare2.ID && user.Favorites.FirstOrDefault(z => z == x.ID) == default && x.ID != user.Buddy.ID);
                 }
-                else matches = list.FindAll(x => !x.Traded && !x.Shiny && x.Ball != "Cherish" && x.Species != "Ditto" && x.ID != user.Daycare1.ID && x.ID != user.Daycare2.ID && user.Favorites.FirstOrDefault(z => z == x.ID) == default);
+                else matches = list.FindAll(x => !x.Traded && !x.Shiny && x.Ball != "Cherish" && x.Species != "Ditto" && x.ID != user.Daycare1.ID && x.ID != user.Daycare2.ID && user.Favorites.FirstOrDefault(z => z == x.ID) == default && x.ID != user.Buddy.ID);
 
                 if (matches.Count() == 0)
                 {
-                    result.Message = input == "" ? "Cannot find any more non-shiny, non-Ditto, non-favorite, non-event Pokémon to release." : "Cannot find anything that could be released with the specified criteria.";
+                    result.Message = input == "" ? "Cannot find any more non-shiny, non-Ditto, non-favorite, non-event, non-buddy Pokémon to release." : "Cannot find anything that could be released with the specified criteria.";
                     return false;
                 }
 
@@ -338,7 +346,7 @@ namespace SysBot.Pokemon
                     input = $"Pokémon in {ball} Ball";
 
                 result.User = user;
-                result.Message = input == "" ? "Every non-shiny Pokémon was released, excluding Ditto, favorites, events, and those in daycare." : $"Every {(input.ToLower() == "shiny" ? "shiny Pokémon" : ballStr == "Cherish" ? "non-shiny event Pokémon" : $"non-shiny {input}")} was released, excluding favorites{(ballStr == "Cherish" ? "" : ", events,")} and those in daycare.";
+                result.Message = input == "" ? "Every non-shiny Pokémon was released, excluding Ditto, favorites, events, buddy, and those in daycare." : $"Every {(input.ToLower() == "shiny" ? "shiny Pokémon" : ballStr == "Cherish" ? "non-shiny event Pokémon" : $"non-shiny {input}")} was released, excluding favorites, buddy{(ballStr == "Cherish" ? "" : ", events,")} and those in daycare.";
                 return true;
             }
 
@@ -364,9 +372,9 @@ namespace SysBot.Pokemon
                     return false;
                 }
 
-                if (user.Daycare1.ID == id || user.Daycare2.ID == id || user.Favorites.FirstOrDefault(x => x == id) != default)
+                if (user.Daycare1.ID == id || user.Daycare2.ID == id || user.Favorites.FirstOrDefault(x => x == id) != default || user.Buddy.ID == id)
                 {
-                    result.Message = "Cannot release a Pokémon in daycare or favorites.";
+                    result.Message = "Cannot release a Pokémon in daycare, favorites, or if it's your buddy.";
                     return false;
                 }
 
@@ -501,18 +509,18 @@ namespace SysBot.Pokemon
             return result;
         }
 
-        public Results GiftHandler(TradeExtensions.TCUserInfoRoot.TCUserInfo user, TradeExtensions.TCUserInfoRoot.TCUserInfo m_user, string id)
+        public Results GiftHandler(TradeExtensions.TCUserInfoRoot.TCUserInfo user, TradeExtensions.TCUserInfoRoot.TCUserInfo m_user, string input)
         {
             Results result = new();
             bool FuncGift()
             {
-                if (!int.TryParse(id, out int _int))
+                if (!int.TryParse(input, out int id))
                 {
                     result.Message = "Please enter a numerical catch ID.";
                     return false;
                 }
 
-                var match = user.Catches.FirstOrDefault(x => x.ID == int.Parse(id) && !x.Traded);
+                var match = user.Catches.FirstOrDefault(x => x.ID == id && !x.Traded);
                 var dir = Path.Combine("TradeCord", $"{m_user.UserID}");
                 if (match == null)
                 {
@@ -522,7 +530,7 @@ namespace SysBot.Pokemon
                 else if (!Directory.Exists(dir))
                     Directory.CreateDirectory(dir);
 
-                var dcfavCheck = user.Daycare1.ID == int.Parse(id) || user.Daycare2.ID == int.Parse(id) || user.Favorites.FirstOrDefault(x => x == int.Parse(id)) != default;
+                var dcfavCheck = user.Daycare1.ID == id || user.Daycare2.ID == id || user.Favorites.FirstOrDefault(x => x == id) != default || user.Buddy.ID == id;
                 if (dcfavCheck)
                 {
                     result.Message = "Please remove your Pokémon from favorites and daycare before gifting!";
@@ -779,6 +787,171 @@ namespace SysBot.Pokemon
             return result;
         }
 
+        public Results BuddyHandler(TradeExtensions.TCUserInfoRoot.TCUserInfo user, string input)
+        {
+            Results result = new();
+
+            bool FuncBuddy()
+            {
+                int id = 0;
+                if (input != string.Empty && !int.TryParse(input, out id))
+                {
+                    result.Message = "Please enter a numerical catch ID.";
+                    return false;
+                }
+                else if (input == string.Empty && user.Buddy.ID == 0)
+                {
+                    result.Message = "You don't have an active buddy.";
+                    return false;
+                }
+
+                var match = user.Catches.FirstOrDefault(x => x.ID == (input != string.Empty ? id : user.Buddy.ID) && !x.Traded);
+                if (match == null)
+                {
+                    result.Message = "Could not find this Pokémon.";
+                    return false;
+                }
+
+                var pk = (PK8?)PKMConverter.GetPKMfromBytes(File.ReadAllBytes(match.Path));
+                if (pk == null)
+                {
+                    result.Message = "Oops, something happened when converting your Pokémon!";
+                    return false;
+                }
+
+                result.Poke = pk;
+                if (input == string.Empty)
+                {
+                    result.EmbedName = $"{user.Username}'s {(match.Shiny ? "★" : "")}{(pk.IsNicknamed ? $"{user.Buddy.Nickname}" : $"{match.Species}{match.Form}")}";
+                    return true;
+                }
+                else
+                {
+                    user.Buddy = new()
+                    {
+                        ID = id,
+                        Nickname = pk.Nickname,
+                        Ability = (Ability)pk.Ability,
+                        HatchSteps = 0,
+                    };
+
+                    result.Message = $"Set your {(match.Shiny ? "★" : "")}{(pk.IsNicknamed ? $"{user.Buddy.Nickname}" : $"{match.Species}{match.Form}")} as your new buddy!";
+                    return true;
+                }
+            }
+
+            result.Success = FuncBuddy();
+            result.User = user;
+            return result;
+        }
+
+        public Results NicknameHandler(TradeExtensions.TCUserInfoRoot.TCUserInfo user, string input)
+        {
+            Results result = new();
+
+            bool FuncNickname()
+            {
+                if (user.Buddy.ID == 0)
+                {
+                    result.Message = "You don't have an active buddy!";
+                    return false;
+                }               
+                else if (WordFilter.IsFiltered(input, out _))
+                {
+                    result.Message = "Nickname triggered the word filter. Please choose a different nickname.";
+                    return false;
+                }
+                else if (input.Length > 12)
+                {
+                    result.Message = "Nickname is too long.";
+                    return false;
+                }
+
+                var match = user.Catches.FirstOrDefault(x => x.ID == user.Buddy.ID && !x.Traded);
+                if (match == null)
+                {
+                    result.Message = "Could not find this Pokémon.";
+                    return false;
+                }
+
+                if (match.Egg)
+                {
+                    result.Message = "Cannot nickname eggs.";
+                    return false;
+                }
+
+                var pk = (PK8?)PKMConverter.GetPKMfromBytes(File.ReadAllBytes(match.Path));
+                if (pk == null)
+                {
+                    result.Message = "Oops, something happened when converting your Pokémon!";
+                    return false;
+                }
+
+                pk.SetNickname(input);
+                var la = new LegalityAnalysis(pk);
+                if (!la.Valid)
+                {
+                    result.Message = "Nickname is not valid.";
+                    return false;
+                }
+
+                File.WriteAllBytes(match.Path, pk.DecryptedPartyData);
+                user.Buddy.Nickname = input;
+                result.User = user;
+                result.Message = "Your buddy's nickname was updated!";
+                return true;
+            }
+
+            result.Success = FuncNickname();
+            return result;
+        }
+
+        private TradeExtensions.TCUserInfoRoot.TCUserInfo BuddySystem(TradeExtensions.TCUserInfoRoot.TCUserInfo user, out string buddyMsg)
+        {
+            buddyMsg = string.Empty;
+            if (user.Buddy.ID != 0)
+            {
+                var match = user.Catches.FirstOrDefault(x => x.ID == user.Buddy.ID && !x.Traded);
+                if (match == null)
+                    return user;
+
+                var pk = (PK8?)PKMConverter.GetPKMfromBytes(File.ReadAllBytes(match.Path));
+                if (pk == null)
+                    return user;
+
+                if (pk.IsEgg)
+                {
+                    double status = user.Buddy.HatchSteps / (double)pk.PersonalInfo.HatchCycles;
+                    if (status < 1.0)
+                    {
+                        user.Buddy.HatchSteps += 5;
+                        return user;
+                    }
+                    else
+                    {
+                        CommonEdits.ForceHatchPKM(pk);
+                        File.WriteAllBytes(match.Path, pk.DecryptedPartyData);
+                        user.Buddy.Nickname = pk.Nickname;
+                        user.Buddy.HatchSteps = 0;
+                        user.Catches.Remove(match);
+                        user.Catches.Add(new()
+                        {
+                            Ball = match.Ball,
+                            Egg = false,
+                            Form = match.Form,
+                            ID = match.ID,
+                            Path = match.Path,
+                            Shiny = match.Shiny,
+                            Species = match.Species,
+                            Traded = false,
+                        });
+                        buddyMsg = "&^&Uh-oh!... You've just hatched an egg!";
+                    }
+                }
+            }
+            return user;
+        }
+
         private TradeExtensions.TCUserInfoRoot.TCUserInfo TradeCordDump(TradeExtensions.TCUserInfoRoot.TCUserInfo user, string subfolder, PK8 pk, out int index)
         {
             var dir = Path.Combine("TradeCord", subfolder);
@@ -963,8 +1136,7 @@ namespace SysBot.Pokemon
             {
                 (int)Species.Exeggutor or (int)Species.Marowak => "\n.Version=33",
                 (int)Species.Mew => shiny != Shiny.Never ? $"{mewOverride[TradeExtensions.Random.Next(2)]}" : "",
-                (int)Species.Articuno or (int)Species.Zapdos or (int)Species.Moltres => shiny == Shiny.AlwaysSquare && !birbs ? "\n.Version=33" : "",
-                _ => "",
+                _ => UMWormhole.Contains(Rng.SpeciesRNG) && shiny == Shiny.AlwaysSquare && !birbs ? "\n.Version=33" : USWormhole.Contains(Rng.SpeciesRNG) && shiny == Shiny.AlwaysSquare && !birbs ? "\n.Version=32" : "",
             };
 
             if (Rng.SpeciesRNG == (int)Species.Mew && gameVer == mewOverride[1] && trainerInfo[4] != "")
@@ -979,7 +1151,7 @@ namespace SysBot.Pokemon
                 (int)Species.Treecko or (int)Species.Torchic or (int)Species.Mudkip => $"\nBall: {(Ball)TradeExtensions.Random.Next(2, 27)}",
                 (int)Species.Pikachu or (int)Species.Victini or (int)Species.Celebi or (int)Species.Jirachi or (int)Species.Genesect or (int)Species.Silvally => "\nBall: Poke",
                 (int)Species.Mew => gameVer == mewOverride[1] ? $"\nBall: {mewEmeraldBalls[TradeExtensions.Random.Next(mewEmeraldBalls.Length)]}" : "\nBall: Poke",
-                _ => TradeExtensions.Pokeball.Contains(Rng.SpeciesRNG) || gameVer == "\n.Version=33" ? "\nBall: Poke" : $"\nBall: {(Ball)TradeExtensions.Random.Next(1, 27)}",
+                _ => TradeExtensions.Pokeball.Contains(Rng.SpeciesRNG) || gameVer == "\n.Version=33" || gameVer == "\n.Version=32" ? "\nBall: Poke" : $"\nBall: {(Ball)TradeExtensions.Random.Next(1, 27)}",
             };
 
             if (ballRng.Contains("Cherish"))

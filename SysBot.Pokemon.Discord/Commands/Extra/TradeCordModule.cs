@@ -641,14 +641,24 @@ namespace SysBot.Pokemon.Discord
 
             bool canGmax = new ShowdownSet(ShowdownParsing.GetShowdownText(result.Poke)).CanGigantamax;
             var pokeImg = TradeExtensions.PokeImg(result.Poke, canGmax, Hub.Config.TradeCord.UseFullSizeImages);
-            var embed = new EmbedBuilder { Color = result.Poke.IsShiny ? Color.Blue : Color.DarkBlue, ThumbnailUrl = pokeImg }.WithFooter(x => { x.Text = footerMsg; x.IconUrl = "https://i.imgur.com/nXNBrlr.png"; });
+            var ballImg = $"https://raw.githubusercontent.com/BakaKaito/HomeImages/main/Ballimg/50x50/{((Ball)result.Poke.Ball).ToString().ToLower()}ball.png";
             var form = TradeExtensions.FormOutput(result.Poke.Species, result.Poke.Form, out _).Replace("-", "");
+            var lvlProgress = (Experience.GetEXPToLevelUpPercentage(result.Poke.CurrentLevel, result.Poke.EXP, result.Poke.PersonalInfo.EXPGrowth) * 100.0).ToString("N1");
             msg = $"\nNickname: {result.User.Buddy.Nickname}" +
                   $"\nSpecies: {SpeciesName.GetSpeciesNameGeneration(result.Poke.Species, 2, 8)}" +
                   $"\nForm: {(form == string.Empty ? "Base" : form)}" +
                   $"\nAbility: {result.User.Buddy.Ability}" +
-                  $"\nLevel: {result.Poke.CurrentLevel}";
-            await Util.EmbedUtil(Context, result.EmbedName, msg, embed).ConfigureAwait(false);
+                  $"\nLevel: {result.Poke.CurrentLevel}" +
+                  $"{(!result.Poke.IsEgg && result.Poke.CurrentLevel < 100 ? $"\nProgress to next level: {lvlProgress}%" : "")}";
+
+            var author = new EmbedAuthorBuilder { Name = result.EmbedName, IconUrl = ballImg };
+            var embed = new EmbedBuilder { Color = result.Poke.IsShiny ? Color.Blue : Color.DarkBlue, ThumbnailUrl = pokeImg }.WithFooter(x =>
+            {
+                x.Text = footerMsg;
+                x.IconUrl = "https://i.imgur.com/nXNBrlr.png";
+            }).WithAuthor(author).WithDescription(msg);
+
+            await Context.Message.Channel.SendMessageAsync(embed: embed.Build()).ConfigureAwait(false);
         }
 
         [Command("TradeCordNickname")]

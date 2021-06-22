@@ -136,6 +136,9 @@ namespace SysBot.Pokemon
                     result.PokeID = index;
                 }
 
+                user = BuddySystem(user, result.Poke, out buddyMsg);
+                result.Message += buddyMsg;
+
                 if (result.EggPoke.Species != 0)
                 {
                     user.CatchCount++;
@@ -143,14 +146,10 @@ namespace SysBot.Pokemon
                     result.EggPokeID = eggIndex;
                     result.Message += eggMsg;
                 }
-
-                user = BuddySystem(user, out buddyMsg);
-                result.Message += buddyMsg;
             }
 
             result.User = user;
             result.EmbedName += $"Results{(result.EggPoke.Species != 0 ? "&^&\nEggs" : "")}";
-            result.EmbedName += buddyMsg != string.Empty ? "&^&\nHatch" : "";
             return result;
         }
 
@@ -912,7 +911,7 @@ namespace SysBot.Pokemon
             return result;
         }
 
-        private TradeExtensions.TCUserInfoRoot.TCUserInfo BuddySystem(TradeExtensions.TCUserInfoRoot.TCUserInfo user, out string buddyMsg)
+        private TradeExtensions.TCUserInfoRoot.TCUserInfo BuddySystem(TradeExtensions.TCUserInfoRoot.TCUserInfo user, PK8 pk8, out string buddyMsg)
         {
             buddyMsg = string.Empty;
             if (user.Buddy.ID != 0)
@@ -951,8 +950,27 @@ namespace SysBot.Pokemon
                             Species = match.Species,
                             Traded = false,
                         });
-                        buddyMsg = "&^&Uh-oh!... You've just hatched an egg!";
+                        buddyMsg = "\nUh-oh!... You've just hatched an egg!";
                     }
+                }
+                else if (pk.CurrentLevel < 100 && pk8.Species != 0)
+                {
+                    var xpMin = Experience.GetEXP(pk.CurrentLevel + 1, pk.PersonalInfo.EXPGrowth);
+                    var xpGet = (uint)Math.Round(Math.Pow(pk8.CurrentLevel / 5.0 * ((2.0 * pk8.CurrentLevel + 10.0) / (pk8.CurrentLevel + pk.CurrentLevel + 10.0)), 2.5) * (pk.OT_Name == user.OTName ? 1.0 : 1.5) * (pk8.IsShiny ? 1.3 : 1.0), 0, MidpointRounding.AwayFromZero);
+                    if (xpGet < 100)
+                        xpGet = 175;
+
+                    pk.EXP += xpGet;
+                    while (pk.EXP >= Experience.GetEXP(pk.CurrentLevel + 1, pk.PersonalInfo.EXPGrowth) && pk.CurrentLevel < 100)
+                        pk.CurrentLevel++;
+
+                    if (pk.CurrentLevel == 100)
+                        pk.EXP = xpMin;
+
+                    File.WriteAllBytes(match.Path, pk.DecryptedPartyData);
+                    if (pk.EXP >= xpMin)
+                        buddyMsg = $"\n{user.Buddy.Nickname} gained {xpGet} EXP and leveled up to level {pk.CurrentLevel}!";
+                    else buddyMsg = $"\n{user.Buddy.Nickname} gained {xpGet} EXP!";
                 }
             }
             return user;

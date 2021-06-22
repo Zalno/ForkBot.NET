@@ -518,11 +518,23 @@ namespace SysBot.Pokemon
             return pkm;
         }
 
-        public static string DexFlavor(int species)
+        public static string DexFlavor(int species, int form, bool gmax)
         {
             var resourcePath = "SysBot.Pokemon.Helpers.DexFlavor.txt";
             using StreamReader reader = new(System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream(resourcePath));
-            return reader.ReadToEnd().Split('\n')[species];
+
+            if (Enum.IsDefined(typeof(Foreign), species) && form > 0)
+                form = 0;
+
+            if (!gmax)
+            {
+                if (form > 0)
+                    return reader.ReadToEnd().Split('_')[1].Split('\n')[species].Split('|')[form - 1];
+                else return reader.ReadToEnd().Split('\n')[species];
+            }
+
+            string[] str = reader.ReadToEnd().Split('_')[1].Split('\n')[species].Split('|');
+            return str[^1];
         }
 
         public static PK8 CherishHandler(MysteryGift mg, ITrainerInfo info)

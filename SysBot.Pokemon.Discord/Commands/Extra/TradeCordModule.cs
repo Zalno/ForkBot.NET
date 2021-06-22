@@ -284,7 +284,9 @@ namespace SysBot.Pokemon.Discord
 
             bool canGmax = new ShowdownSet(ShowdownParsing.GetShowdownText(result.Poke)).CanGigantamax;
             var pokeImg = TradeExtensions.PokeImg(result.Poke, canGmax, Hub.Config.TradeCord.UseFullSizeImages);
-            var embed = new EmbedBuilder { Color = result.Poke.IsShiny ? Color.Blue : Color.DarkBlue, ThumbnailUrl = pokeImg }.WithFooter(x => { x.Text = $"\n\n{TradeExtensions.DexFlavor(result.Poke.Species)}"; x.IconUrl = "https://i.imgur.com/nXNBrlr.png"; });
+            string flavorText = $"\n\n{TradeExtensions.DexFlavor(result.Poke.Species, result.Poke.Form, canGmax)}";
+
+            var embed = new EmbedBuilder { Color = result.Poke.IsShiny ? Color.Blue : Color.DarkBlue, ThumbnailUrl = pokeImg }.WithFooter(x => { x.Text = flavorText; x.IconUrl = "https://i.imgur.com/nXNBrlr.png"; });
             msg = $"\n\n{ReusableActions.GetFormattedShowdownText(result.Poke)}";
 
             await Util.EmbedUtil(Context, result.EmbedName, msg, embed).ConfigureAwait(false);
@@ -625,8 +627,9 @@ namespace SysBot.Pokemon.Discord
             }
 
             string footerMsg = string.Empty;
+            bool canGmax = new ShowdownSet(ShowdownParsing.GetShowdownText(result.Poke)).CanGigantamax;
             if (!result.Poke.IsEgg)
-                footerMsg = $"\n\n{TradeExtensions.DexFlavor(result.Poke.Species)}";
+                footerMsg = $"\n\n{TradeExtensions.DexFlavor(result.Poke.Species, result.Poke.Form, canGmax)}";
             else
             {
                 double status = result.User.Buddy.HatchSteps / (double)result.Poke.PersonalInfo.HatchCycles;
@@ -639,7 +642,6 @@ namespace SysBot.Pokemon.Discord
                 else footerMsg = "Sounds can be heard coming from inside! This Egg will hatch soon!";
             }
 
-            bool canGmax = new ShowdownSet(ShowdownParsing.GetShowdownText(result.Poke)).CanGigantamax;
             var pokeImg = TradeExtensions.PokeImg(result.Poke, canGmax, Hub.Config.TradeCord.UseFullSizeImages);
             var ballImg = $"https://raw.githubusercontent.com/BakaKaito/HomeImages/main/Ballimg/50x50/{((Ball)result.Poke.Ball).ToString().ToLower()}ball.png";
             var form = TradeExtensions.FormOutput(result.Poke.Species, result.Poke.Form, out _).Replace("-", "");

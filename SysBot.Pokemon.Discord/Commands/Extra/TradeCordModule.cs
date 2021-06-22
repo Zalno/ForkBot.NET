@@ -604,6 +604,7 @@ namespace SysBot.Pokemon.Discord
         public async Task TradeCordBuddy([Remainder] string input = "")
         {
             string name = $"{Context.User.Username}'s Buddy";
+            input = input.ToLower();
             if (!TradeCordParanoiaChecks(out string msg))
             {
                 await Util.EmbedUtil(Context, name, msg).ConfigureAwait(false);

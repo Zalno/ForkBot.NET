@@ -794,7 +794,13 @@ namespace SysBot.Pokemon
             bool FuncBuddy()
             {
                 int id = 0;
-                if (input != string.Empty && !int.TryParse(input, out id))
+                if (input == "remove" && user.Buddy.ID != 0)
+                {
+                    user.Buddy = new();
+                    result.Message = "Buddy removed!";
+                    return true;
+                }
+                else if (input != string.Empty && !int.TryParse(input, out id))
                 {
                     result.Message = "Please enter a numerical catch ID.";
                     return false;

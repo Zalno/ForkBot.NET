@@ -676,13 +676,16 @@ namespace SysBot.Pokemon.Discord
                 return;
             }
 
-            for (int i = 0; i < input.Length; i++)
+            if (input.ToLower() != "clear")
             {
-                if (!char.IsLetterOrDigit(input, i) && !char.IsWhiteSpace(input, i))
+                for (int i = 0; i < input.Length; i++)
                 {
-                    msg = "Emotes cannot be used in a nickname";
-                    await Util.EmbedUtil(Context, name, msg).ConfigureAwait(false);
-                    return;
+                    if (!char.IsLetterOrDigit(input, i) && !char.IsWhiteSpace(input, i))
+                    {
+                        msg = "Emotes cannot be used in a nickname";
+                        await Util.EmbedUtil(Context, name, msg).ConfigureAwait(false);
+                        return;
+                    }
                 }
             }
 

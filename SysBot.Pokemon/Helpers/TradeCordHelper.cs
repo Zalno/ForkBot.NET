@@ -892,7 +892,11 @@ namespace SysBot.Pokemon
                     return false;
                 }
 
-                pk.SetNickname(input);
+                bool clear = input.ToLower() == "clear";
+                if (clear)
+                    pk.ClearNickname();
+                else pk.SetNickname(input);
+
                 var la = new LegalityAnalysis(pk);
                 if (!la.Valid)
                 {
@@ -901,9 +905,9 @@ namespace SysBot.Pokemon
                 }
 
                 File.WriteAllBytes(match.Path, pk.DecryptedPartyData);
-                user.Buddy.Nickname = input;
+                user.Buddy.Nickname = clear ? pk.Nickname : input;
                 result.User = user;
-                result.Message = "Your buddy's nickname was updated!";
+                result.Message = clear ? "Your buddy's nickname was cleared!" : "Your buddy's nickname was updated!";
                 return true;
             }
 

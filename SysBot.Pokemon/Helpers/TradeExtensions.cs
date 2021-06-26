@@ -462,8 +462,8 @@ namespace SysBot.Pokemon
             formString = FormConverter.GetFormList(species, strings.Types, strings.forms, GameInfo.GenderSymbolASCII, 8);
             formString[0] = "";
 
-            if (form > formString.Length)
-                form = formString.Length;
+            if (form >= formString.Length)
+                form = formString.Length - 1;
 
             return formString[form].Contains("-") ? formString[form] : formString[form] == "" ? "" : $"-{formString[form]}";
         }

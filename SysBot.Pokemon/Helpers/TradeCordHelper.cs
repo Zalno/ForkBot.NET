@@ -1074,7 +1074,7 @@ namespace SysBot.Pokemon
             if (entry)
                 user.Dex.Add(species);
 
-            string msg = gift ? $"\n{user.Username} registered a new entry to the Pokédex!" : entry ? "\nRegistered to the Pokédex." : "";
+            string msg = gift && entry ? $"\n{user.Username} registered a new entry to the Pokédex!" : entry ? "\nRegistered to the Pokédex." : "";
             if (user.Dex.Count >= 664 && user.DexCompletionCount < 30)
             {
                 user.Dex.Clear();

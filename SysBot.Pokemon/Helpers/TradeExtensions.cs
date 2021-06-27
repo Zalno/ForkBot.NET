@@ -479,33 +479,62 @@ namespace SysBot.Pokemon
 
         public static void EncounterLogs(PK8 pk)
         {
-            if (!File.Exists("EncounterLog.txt"))
+            if (!File.Exists("EncounterLogPretty.txt"))
             {
-                var blank = "Total: 0 Pokémon, 0 Eggs, 0 Shiny\n--------------------------------------\n";
-                File.Create("EncounterLog.txt").Close();
-                File.WriteAllText("EncounterLog.txt", blank);
+                var blank = "Totals: 0 Pokémon, 0 Eggs, 0 ★, 0 ■, 0 🎀\n_________________________________________________\n";
+                File.WriteAllText("EncounterLogPretty.txt", blank);
             }
 
-            var content = File.ReadAllText("EncounterLog.txt").Split('\n').ToList();
-            var form = FormOutput(pk.Species, pk.Form, out _);
-            var speciesName = SpeciesName.GetSpeciesNameGeneration(pk.Species, pk.Language, 8) + (pk.Species == (int)Species.Sinistea ? "" : form);
-            var index = content.FindIndex(2, x => x.Contains(speciesName));
-            var split = index != -1 ? content[index].Split('_') : new string[] { };
+            var content = File.ReadAllText("EncounterLogPretty.txt").Split('\n').ToList();
             var splitTotal = content[0].Split(',');
+            content.RemoveRange(0, 3);
 
-            if (index == -1 && !speciesName.Contains("Sinistea"))
-                content.Add($"{speciesName}_1_★{(pk.IsShiny ? 1 : 0)}");
-            else if (index == -1 && speciesName.Contains("Sinistea"))
-                content.Add($"{speciesName}_1_{(pk.Form > 0 ? 1 : 0)}_★{(pk.IsShiny ? 1 : 0)}");
-            else if (index != -1 && !speciesName.Contains("Sinistea"))
-                content[index] = $"{split[0]}_{int.Parse(split[1]) + 1}_{(pk.IsShiny ? "★" + (int.Parse(split[2].Replace("★", "")) + 1).ToString() : split[2])}";
-            else if (index != -1 && speciesName.Contains("Sinistea"))
-                content[index] = $"{split[0]}_{int.Parse(split[1]) + 1}_{(pk.Form > 0 ? (int.Parse(split[2]) + 1).ToString() : split[2])}_{(pk.IsShiny ? "★" + (int.Parse(split[3].Replace("★", "")) + 1).ToString() : split[3])}";
+            int pokeTotal = int.Parse(splitTotal[0].Split(' ')[1]) + 1;
+            int eggTotal = int.Parse(splitTotal[1].Split(' ')[1]) + (pk.IsEgg ? 1 : 0);
+            int starTotal = int.Parse(splitTotal[2].Split(' ')[1]) + (pk.IsShiny && pk.ShinyXor > 0 ? 1 : 0);
+            int squareTotal = int.Parse(splitTotal[3].Split(' ')[1]) + (pk.IsShiny && pk.ShinyXor == 0 ? 1 : 0);
+            int markTotal = int.Parse(splitTotal[4].Split(' ')[1]) + (pk.HasMark() ? 1 : 0);
 
-            content[0] = "Total: " + $"{int.Parse(splitTotal[0].Split(':')[1].Replace(" Pokémon", "")) + 1} Pokémon, " +
-                (pk.IsEgg ? $"{int.Parse(splitTotal[1].Replace(" Eggs", "")) + 1} Eggs, " : splitTotal[1].Trim() + ", ") +
-                (pk.IsShiny ? $"{int.Parse(splitTotal[2].Replace(" Shiny", "")) + 1} Shiny, " : splitTotal[2].Trim());
-            File.WriteAllText("EncounterLog.txt", string.Join("\n", content));
+            var form = FormOutput(pk.Species, pk.Form, out _);
+            var speciesName = $"{SpeciesName.GetSpeciesNameGeneration(pk.Species, pk.Language, 8)}{form}";
+            var index = content.FindIndex(x => x.Contains(speciesName));
+
+            if (index == -1)
+                content.Add($"{speciesName}: 1, {(pk.IsShiny && pk.ShinyXor > 0 ? 1 : 0)}★, {(pk.IsShiny && pk.ShinyXor == 0 ? 1 : 0)}■, {(pk.HasMark() ? 1 : 0)}🎀, {GetPercent(pokeTotal, 1)}%");
+
+            var length = index == -1 ? 1 : 0;
+            for (int i = 0; i < content.Count - length; i++)
+            {
+                var sanitized = GetSanitizedEncounterLineArray(content[i]);
+                if (i == index)
+                {
+                    int speciesTotal = int.Parse(sanitized[1]) + 1;
+                    int stTotal = int.Parse(sanitized[2]) + (pk.IsShiny && pk.ShinyXor > 0 ? 1 : 0);
+                    int sqTotal = int.Parse(sanitized[3]) + (pk.IsShiny && pk.ShinyXor == 0 ? 1 : 0);
+                    int mTotal = int.Parse(sanitized[4]) + (pk.HasMark() ? 1 : 0);
+                    content[i] = $"{speciesName}: {speciesTotal}, {stTotal}★, {sqTotal}■, {mTotal}🎀, {GetPercent(pokeTotal, speciesTotal)}%";
+                }
+                else content[i] = $"{sanitized[0]} {sanitized[1]}, {sanitized[2]}★, {sanitized[3]}■, {sanitized[4]}🎀, {GetPercent(pokeTotal, int.Parse(sanitized[1]))}%";
+            }
+
+            content.Sort();
+            string totalsString =
+                $"Totals: {pokeTotal} Pokémon, " +
+                $"{eggTotal} Eggs ({GetPercent(pokeTotal, eggTotal)}%), " +
+                $"{starTotal} ★ ({GetPercent(pokeTotal, starTotal)}%), " +
+                $"{squareTotal} ■ ({GetPercent(pokeTotal, squareTotal)}%), " +
+                $"{markTotal} 🎀 ({GetPercent(pokeTotal, markTotal)}%)" +
+                "\n_________________________________________________\n";
+            content.Insert(0, totalsString);
+            File.WriteAllText("EncounterLogPretty.txt", string.Join("\n", content));
+        }
+
+        private static string GetPercent(int total, int subtotal) => (100.0 * ((double)subtotal / total)).ToString("N2");
+
+        private static string[] GetSanitizedEncounterLineArray(string content)
+        {
+            var replace = new Dictionary<string, string> { { ",", "" }, { "★", "" }, { "■", "" }, { "🎀", "" }, { "%", "" } };
+            return replace.Aggregate(content, (old, cleaned) => old.Replace(cleaned.Key, cleaned.Value)).Split(' ');
         }
 
         public static PKM TrashBytes(PKM pkm, LegalityAnalysis? la = null)

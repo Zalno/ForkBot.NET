@@ -72,7 +72,7 @@ namespace SysBot.Pokemon.Discord
 
             if (pool.Count == 0)
             {
-                await ReplyAsync($"Giveaway pool is empty.").ConfigureAwait(false);
+                await ReplyAsync("Giveaway pool is empty.").ConfigureAwait(false);
                 return;
             }
             else if (pk.Nickname.ToLower() == "random") // Request a random giveaway prize.

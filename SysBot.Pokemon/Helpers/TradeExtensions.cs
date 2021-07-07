@@ -737,7 +737,7 @@ namespace SysBot.Pokemon
             if (user == null)
                 user = new TCUserInfoRoot.TCUserInfo { UserID = gift ? ctx.GifteeID : ctx.ID, Username = gift ? ctx.GifteeName : ctx.Username };
 
-            if (user.Username == string.Empty)
+            if (user.Username == string.Empty || user.Username != ctx.Username)
                 user.Username = gift ? ctx.GifteeName : ctx.Username;
 
             return user;

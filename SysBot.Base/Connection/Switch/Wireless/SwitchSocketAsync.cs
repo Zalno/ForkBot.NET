@@ -182,7 +182,7 @@ namespace SysBot.Base
             {
                 int recv = Connection.Receive(buffer, ofs, Connection.ReceiveBufferSize, SocketFlags.None);
                 ofs += recv;
-                await Task.Delay(recv / DelayFactor + BaseDelay, token).ConfigureAwait(false);
+                await Task.Delay(MaximumTransferSize / DelayFactor + BaseDelay, token).ConfigureAwait(false);
             }
 
             if (ofs % 2 != 0)

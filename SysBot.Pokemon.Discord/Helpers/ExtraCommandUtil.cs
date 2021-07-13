@@ -80,11 +80,21 @@ namespace SysBot.Pokemon.Discord
 
         public static async Task HandleReactionAsync(Cacheable<IUserMessage, ulong> cachedMsg, ISocketMessageChannel _, SocketReaction reaction)
         {
+            if (!TradeExtensions.TCInitialized || !reaction.User.IsSpecified)
+                return;
+
             var user = reaction.User.Value;
             if (user.IsBot || !ReactMessageDict.ContainsKey(user.Id))
                 return;
 
-            var msg = await cachedMsg.GetOrDownloadAsync().ConfigureAwait(false);
+            IUserMessage msg;
+            if (!cachedMsg.HasValue)
+                msg = await cachedMsg.GetOrDownloadAsync().ConfigureAwait(false);
+            else msg = cachedMsg.Value;
+
+            if (msg.Embeds.Count < 1)
+                return;
+
             bool invoker = msg.Embeds.First().Fields[0].Name.Contains(user.Username);
             if (!invoker)
                 return;

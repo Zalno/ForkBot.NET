@@ -21,6 +21,7 @@ namespace SysBot.Pokemon
         public static DateTime EventVoteTimer = new();
         private static TCUserInfoRoot UserInfo = new();
         private static readonly object _sync = new();
+        private static readonly object _syncLog = new();
         public static readonly Random Random = new();
         private static DateTime ConfigTimer = DateTime.Now;
         private static bool TCRWLockEnable;
@@ -488,7 +489,7 @@ namespace SysBot.Pokemon
                 File.WriteAllText(filepath, blank);
             }
 
-            lock (_sync)
+            lock (_syncLog)
             {
                 var content = File.ReadAllText(filepath).Split('\n').ToList();
                 var splitTotal = content[0].Split(',');

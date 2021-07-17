@@ -12,25 +12,7 @@ namespace SysBot.Pokemon.Discord
     public class LairModule : ModuleBase<SocketCommandContext>
     {
         [Command("hunt")]
-        [Alias("h", "find", "encounter")]
-        [Summary("Hunt the specified Pokémon species. Enter without spaces or symbols.")]
-        [RequireSudo]
-        public async Task Hunt([Summary("Sets the Lair Pokémon Species")] string species)
-        {
-            var parse = EnumParse<LairSpecies>(species);
-            if (parse == default)
-            {
-                await ReplyAsync("Not a valid Lair Species.").ConfigureAwait(false);
-                return;
-            }
-
-            SysCordInstance.Self.Hub.Config.Lair.LairSpecies = parse;
-            var msg = $"{Context.User.Mention} Legendary Species has been set to {parse}.";
-            await ReplyAsync(msg).ConfigureAwait(false);
-        }
-
-        [Command("huntBulk")]
-        [Alias("hb")]
+        [Alias("h")]
         [Summary("Sets all three Scientist Notes. Enter all three species without spaces or symbols in their names; species separated by spaces.")]
         [RequireSudo]
         public async Task Hunt([Summary("Sets the Lair Pokémon Species in bulk.")] string species1, string species2, string species3)
@@ -83,7 +65,7 @@ namespace SysBot.Pokemon.Discord
         [RequireSudo]
         public async Task SetLairBall([Summary("Sets the ball for catching Lair Pokémon.")] string ball)
         {
-            var parse = EnumParse<Ball>(ball);
+            var parse = EnumParse<LairBall>(ball);
             if (parse == default)
             {
                 await ReplyAsync("Not a valid ball. Correct format is, for example, \"$slb Love\".").ConfigureAwait(false);

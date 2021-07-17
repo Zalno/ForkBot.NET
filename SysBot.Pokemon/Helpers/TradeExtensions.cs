@@ -648,7 +648,8 @@ namespace SysBot.Pokemon
             {
                 var current = Process.GetCurrentProcess();
                 var all = Process.GetProcessesByName(current.ProcessName);
-                if (all.Length < 2)
+                bool sameExe = all.Count(x => x.MainModule.FileName == current.MainModule.FileName) > 1;
+                if (!sameExe)
                 {
                     TCInitialized = true;
                     UserInfo = GetRoot<TCUserInfoRoot>(InfoPath);

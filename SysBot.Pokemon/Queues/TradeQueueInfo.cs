@@ -93,8 +93,8 @@ namespace SysBot.Pokemon
 
             foreach (var detail in details)
             {
-                if (detail.Type == PokeRoutineType.TradeCord)
-                    TradeExtensions.TradeCordPath.Remove(TradeExtensions.TradeCordPath.FirstOrDefault(x => x.Contains(detail.UserID.ToString())));
+                if (detail.Type == PokeRoutineType.TradeCord && TradeExtensions.TradeCordPath.TryGetValue(detail.UserID, out _))
+                    TradeExtensions.TradeCordPath.Remove(detail.UserID);
                 Remove(detail);
             }
             return QueueResultRemove.CurrentlyProcessing;

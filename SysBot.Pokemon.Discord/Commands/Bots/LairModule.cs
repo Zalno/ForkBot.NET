@@ -20,7 +20,7 @@ namespace SysBot.Pokemon.Discord
             string[] input = new string[] { species1, species2, species3 };
             for (int i = 0; i < input.Length; i++)
             {
-                var parse = EnumParse<LairSpecies>(input[i]);
+                var parse = TradeExtensions.EnumParse<LairSpecies>(input[i]);
                 if (parse == default)
                 {
                     await ReplyAsync($"{input[i]} is not a valid Lair Species.").ConfigureAwait(false);
@@ -65,7 +65,7 @@ namespace SysBot.Pokemon.Discord
         [RequireSudo]
         public async Task SetLairBall([Summary("Sets the ball for catching Lair Pokémon.")] string ball)
         {
-            var parse = EnumParse<LairBall>(ball);
+            var parse = TradeExtensions.EnumParse<LairBall>(ball);
             if (parse == default)
             {
                 await ReplyAsync("Not a valid ball. Correct format is, for example, \"$slb Love\".").ConfigureAwait(false);
@@ -108,8 +108,6 @@ namespace SysBot.Pokemon.Discord
             else _ = Task.Run(async () => await LairEmbedLoop(channels));
             LairBotUtil.EmbedsInitialized ^= true;
         }
-
-        private T EnumParse<T>(string input) where T : struct, Enum => !Enum.TryParse(input, true, out T result) ? new() : result;
 
         private async Task LairEmbedLoop(List<ulong> channels)
         {
